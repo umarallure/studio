@@ -91,7 +91,7 @@ export default function BracketPage() {
         checkAllListenersProcessed(); // Mark this listener as failed
         // If multiple rounds fail, criticalError might be set multiple times, last one wins.
         // We could accumulate errors if needed.
-        setCriticalError(prev => prev || `Failed to load data for Round ${roundId}.`);
+        setCriticalError(prev => prev || `Failed to load data for Round ${roundId}. Check Firestore access and data structure.`);
       });
       unsubscribes.push(unsubscribeRound);
     }
@@ -100,10 +100,10 @@ export default function BracketPage() {
       if (listenersAttachedOrFailed < totalListenersExpected) {
         setIsLoading(false);
         if (!criticalError && Object.keys(roundsDataCollector).length === 0) {
-             setCriticalError("Loading tournament data timed out. Some rounds may not exist or failed to load.");
+             setCriticalError("Loading tournament data timed out. Ensure match documents under `bracket/[roundNum]/matches/` are populated in Firestore by your Google Apps Script.");
              toast({
                 title: "Loading Timeout",
-                description: "Could not retrieve all bracket data in time. The display may be incomplete.",
+                description: "Could not retrieve bracket data in time. Display may be incomplete. Check Firestore.",
                 variant: "warning",
              });
         } else if (!criticalError) {
@@ -149,7 +149,8 @@ export default function BracketPage() {
         <h2 className="text-3xl font-headline text-destructive mt-4">Error Loading Bracket</h2>
         <p className="text-muted-foreground max-w-lg">{criticalError}</p>
         <p className="text-sm text-muted-foreground mt-2">
-          Please ensure your Google Apps Script is correctly populating data in Firestore under the path:
+          Please ensure your Google Apps Script is correctly populating data in Firestore.
+          Matchup documents are expected at:
           <br /> <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches/[matchId]</code>.
           <br />Also, check your internet connection and Firestore security rules.
         </p>
@@ -169,8 +170,8 @@ export default function BracketPage() {
         <Info className="h-16 w-16 text-primary" />
         <h2 className="text-3xl font-headline text-primary mt-4">Tournament Bracket is Empty</h2>
         <p className="text-muted-foreground max-w-lg">
-          Matchups will appear here automatically in real-time as they are added by the Google Apps Script.
-          <br/>Please ensure data is being written to Firestore at: <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches/[matchId]</code>.
+          Matchup documents will appear here automatically in real-time as they are created by the Google Apps Script.
+          <br/>Ensure data is being written to Firestore at: <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches/[matchId]</code>.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="mt-6">
           <RefreshCw className="mr-2 h-4 w-4" />
