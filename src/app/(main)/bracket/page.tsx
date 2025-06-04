@@ -1,18 +1,21 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import BracketDisplay from '@/components/bracket/BracketDisplay';
 import { 
   initializeTournamentDataIfNeeded, 
-  getTournamentDataListener,
-  refreshAndSaveTournamentData 
+  refreshAndSaveTournamentData,
+  TOURNAMENT_DOC_PATH, // Import constant
+  mapDocToTournamentData // Import helper
 } from '@/lib/tournament-service';
 import type { TournamentData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Trophy, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { db } from '@/lib/firebase'; // Import db
+import { doc, onSnapshot } from 'firebase/firestore'; // Import onSnapshot and doc
 
 export default function BracketPage() {
   const [tournamentData, setTournamentData] = useState<TournamentData | null>(null);
@@ -20,19 +23,28 @@ export default function BracketPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
 
-  // Initialize data and set up listener
   useEffect(() => {
     async function setupTournament() {
       setIsLoading(true);
-      await initializeTournamentDataIfNeeded(); // Ensure data exists
+      await initializeTournamentDataIfNeeded(); 
       
-      const unsubscribe = await getTournamentDataListener((data) => {
-        setTournamentData(data);
-        setIsLoading(false); // Stop loading once data is received (or null if error)
+      const tournamentDocRef = doc(db, TOURNAMENT_DOC_PATH);
+      const unsubscribe = onSnapshot(tournamentDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setTournamentData(mapDocToTournamentData(docSnap.data()));
+        } else {
+          console.warn("Tournament document does not exist.");
+          setTournamentData(null); 
+        }
+        setIsLoading(false);
+      }, (error) => {
+        console.error("Error listening to tournament data:", error);
+        setTournamentData(null);
+        setIsLoading(false);
       });
       
       return () => {
-        unsubscribe(); // Cleanup listener on component unmount
+        unsubscribe(); 
       };
     }
     setupTournament();
@@ -49,7 +61,6 @@ export default function BracketPage() {
         variant: "default",
         duration: 3000,
       });
-      // Data will update via the Firestore listener
     } catch (error) {
       console.error("Error refreshing bracket:", error);
       toast({
@@ -82,7 +93,6 @@ export default function BracketPage() {
       </div>
     );
   }
-
 
   return (
     <div className="space-y-8">
