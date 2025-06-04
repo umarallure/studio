@@ -1,27 +1,38 @@
 
+// Represents a team as understood from Firestore structure primarily by name
 export interface Team {
-  id: string;
-  name: string;
-  score: number; // Points in the current series (0-3)
+  name: string; // Team name is the primary identifier from Apps Script
   logo?: string; // URL to team logo placeholder
+  dailyWinsInMatchup?: number; // How many daily wins this team has in the current matchup
 }
 
+// Represents a matchup as stored in Firestore under bracket/{round}/matches/{matchId}
 export interface Matchup {
-  id: string;
-  team1: Team | null; // Null if team hasn't advanced yet
-  team2: Team | null; // Null if team hasn't advanced yet
-  winner?: string; // ID of the winning team if match is complete
-  gamesPlayed: number; // How many games in the best of 5 series have been played
-  round: number;
-  matchIndex: number; // Index within the round
+  id: string; // e.g., "match1"
+  roundId: string; // e.g., "1", "2"
+  team1Name: string | null; // Name of team 1, or "TBD"
+  team2Name: string | null; // Name of team 2, or "TBD"
+  team1DailyWins: number;   // From Firestore fields.team1Wins.integerValue
+  team2DailyWins: number;   // From Firestore fields.team2Wins.integerValue
+  seriesWinnerName: string | null; // From Firestore fields.advanced.stringValue
+  // If we need to show individual day scores, we might add a sub-collection fetch here
 }
 
+// Represents a round in the tournament
 export interface Round {
-  id: string;
-  name: string;
+  id: string; // e.g., "1", "2", "3" (corresponds to roundNum in Firestore path)
+  name: string; // e.g., "Round 1: Quarter-Finals"
   matchups: Matchup[];
 }
 
+// Overall tournament data structure
+export interface TournamentData {
+  rounds: Round[];
+  prize: string; // Can remain static or be fetched if stored separately
+}
+
+
+// Types for Center Dashboard remain unchanged by this refactor
 export interface CenterMetric {
   id: string;
   title: string;
@@ -31,11 +42,6 @@ export interface CenterMetric {
   trend?: 'up' | 'down' | 'neutral';
   icon?: React.ElementType;
   description?: string;
-}
-
-export interface TournamentData {
-  rounds: Round[];
-  prize: string;
 }
 
 export interface CenterDashboardData {

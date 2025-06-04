@@ -1,68 +1,17 @@
 
-import type { TournamentData, CenterDashboardData, Matchup, Team, Round } from './types';
+// types import is adjusted, but most mock data here for bracket is now obsolete
+// as data comes from Firestore via Apps Script.
+import type { CenterDashboardData } from './types'; 
 import { TrendingUp, TrendingDown, ShieldCheck, Target, Users } from 'lucide-react';
 
-const createTeam = (id: string, name: string, score: number = 0): Team => ({
-  id,
-  name,
-  score,
-  logo: `https://placehold.co/40x40.png?text=${name.substring(0,1)}`
-});
-
-// Initial Teams for Round 1
-const r1TeamA_initial = createTeam('alpha', 'Alpha Ops', 0);
-const r1TeamB_initial = createTeam('bravo', 'Bravo Solutions', 0);
-const r1TeamC_initial = createTeam('charlie', 'Charlie Squad', 0);
-const r1TeamD_initial = createTeam('delta', 'Delta Force', 0);
-const r1TeamE_initial = createTeam('echo', 'Echo Team', 0);
-const r1TeamF_initial = createTeam('foxtrot', 'Foxtrot Group', 0);
-const r1TeamG_initial = createTeam('golf', 'Golf Unit', 0);
-const r1TeamH_initial = createTeam('hotel', 'Hotel Platoon', 0);
-
-// Initial Matchups structure
-const initialMatchupsStructure: Omit<Matchup, 'winner' | 'gamesPlayed' | 'team1' | 'team2'>[] = [
-  { id: 'm1', round: 1, matchIndex: 0 },
-  { id: 'm2', round: 1, matchIndex: 1 },
-  { id: 'm3', round: 1, matchIndex: 2 },
-  { id: 'm4', round: 1, matchIndex: 3 },
-  { id: 'm5', round: 2, matchIndex: 0 },
-  { id: 'm6', round: 2, matchIndex: 1 },
-  { id: 'm7', round: 3, matchIndex: 0 },
-];
-
-export const initialTournamentRounds: Round[] = [
-  {
-    id: 'round1',
-    name: 'Round 1: Quarter-Finals',
-    matchups: [
-      { ...initialMatchupsStructure[0], team1: r1TeamA_initial, team2: r1TeamB_initial, gamesPlayed: 0 },
-      { ...initialMatchupsStructure[1], team1: r1TeamC_initial, team2: r1TeamD_initial, gamesPlayed: 0 },
-      { ...initialMatchupsStructure[2], team1: r1TeamE_initial, team2: r1TeamF_initial, gamesPlayed: 0 },
-      { ...initialMatchupsStructure[3], team1: r1TeamG_initial, team2: r1TeamH_initial, gamesPlayed: 0 },
-    ],
-  },
-  {
-    id: 'round2',
-    name: 'Round 2: Semi-Finals',
-    matchups: [
-      { ...initialMatchupsStructure[4], team1: null, team2: null, gamesPlayed: 0 },
-      { ...initialMatchupsStructure[5], team1: null, team2: null, gamesPlayed: 0 },
-    ],
-  },
-  {
-    id: 'round3',
-    name: 'Round 3: Grand Finals',
-    matchups: [
-      { ...initialMatchupsStructure[6], team1: null, team2: null, gamesPlayed: 0 },
-    ],
-  },
-];
+// The initialTournamentRounds, createTeam, and initialMatchupsStructure are no longer
+// directly used by the bracket display as data is fetched from Firestore.
+// They are kept here for reference or if needed for other parts of the app,
+// but their structure does not match the new Firestore-driven bracket.
 
 export const tournamentPrize = 'Grand Prize: Company-Wide Recognition and a Team Celebration Budget!';
 
-// The getUpdatedTournamentData logic will be moved to tournament-service.ts
-// and adapted to work with data fetched from Firestore.
-
+// Center Dashboard Mock Data can remain as is, as it's separate from the bracket logic.
 export const mockCenterData1: CenterDashboardData = {
   centerName: 'Alpha Ops HQ',
   dailySales: {
