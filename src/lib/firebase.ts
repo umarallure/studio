@@ -5,12 +5,13 @@ import { getFirestore } from 'firebase/firestore';
 
 // IMPORTANT: Replace these with your actual Firebase project configuration!
 const firebaseConfig: FirebaseOptions = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyB15zKTSp2TBGSGT3lx2sVxXMlyJ3frohw",
+  authDomain: "bpogames.firebaseapp.com",
+  projectId: "bpogames",
+  storageBucket: "bpogames.appspot.com", // Corrected from firebasestorage.app to .appspot.com as per standard
+  messagingSenderId: "89419077156",
+  appId: "1:89419077156:web:95067fe1ecdeabaf296ab1",
+  measurementId: "G-1BKYXTJ8X6"
 };
 
 // Initialize Firebase
@@ -25,3 +26,4 @@ try {
 export const firebaseApp = app;
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
