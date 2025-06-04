@@ -6,7 +6,7 @@ import { doc, getDoc, setDoc, updateDoc, collection, addDoc, Timestamp } from 'f
 import type { TournamentData, TournamentSettings } from '@/lib/types'; // Using updated types
 // Removed initialTournamentRounds, tournamentPrize imports from mock-data as structure differs
 // Importing config details that are safe for server-side
-import { BRACKET_COLLECTION_PATH, mapDocToTournamentData, TOURNAMENT_DOC_PATH } from '@/lib/tournament-config'; 
+import { BRACKET_COLLECTION_PATH, mapDocToTournamentData } from '@/lib/tournament-config'; 
 
 // This function's original purpose was to seed data based on mock-data.
 // The Apps Script now controls data population based on Google Sheets.
@@ -51,11 +51,12 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
     const tournamentDataToSave = {
       name: settings.name,
       teamCount: settings.teamCount,
+      numberOfRounds: settings.numberOfRounds,
       startDate: Timestamp.fromDate(settings.startDate), // Convert JS Date to Firestore Timestamp
       createdAt: Timestamp.now(),
     };
     const docRef = await addDoc(collection(db, "tournaments"), tournamentDataToSave);
-    console.log("Tournament created with ID: ", docRef.id);
+    console.log("Tournament created with ID: ", docRef.id, " Data: ", tournamentDataToSave);
     return { success: true, id: docRef.id };
   } catch (error) {
     console.error("Error creating tournament: ", error);
@@ -65,3 +66,4 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
     return { success: false, error: "An unknown error occurred." };
   }
 }
+

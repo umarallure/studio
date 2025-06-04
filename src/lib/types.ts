@@ -70,4 +70,6 @@ export interface TournamentSettings {
   name: string;
   teamCount: 4 | 8 | 16;
   startDate: Date;
+  numberOfRounds: number;
 }
+

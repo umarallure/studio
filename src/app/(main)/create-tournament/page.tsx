@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Loader2, PlusSquare } from "lucide-react";
+import { CalendarIcon, Loader2, PlusSquare, Hash } from "lucide-react"; // Added Hash icon
 import { createTournament } from '@/lib/tournament-service';
 import type { TournamentSettings } from '@/lib/types';
 
@@ -28,6 +28,8 @@ const tournamentFormSchema = z.object({
   startDate: z.date({
     required_error: "A start date is required.",
   }),
+  // numberOfRounds is not directly part of the form schema for user input
+  // but will be calculated and included in the submission data.
 });
 
 type TournamentFormValues = z.infer<typeof tournamentFormSchema>;
@@ -35,21 +37,42 @@ type TournamentFormValues = z.infer<typeof tournamentFormSchema>;
 export default function CreateTournamentPage() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [calculatedRounds, setCalculatedRounds] = useState<number | null>(null);
 
   const form = useForm<TournamentFormValues>({
     resolver: zodResolver(tournamentFormSchema),
     defaultValues: {
       name: "",
-      // teamCount will be set by Select, zod will coerce string to number
+      // teamCount will be set by Select
     },
   });
 
+  const handleTeamCountChange = (value: string) => {
+    const numTeams = parseInt(value, 10);
+    if ([4, 8, 16].includes(numTeams)) {
+      setCalculatedRounds(Math.log2(numTeams));
+      form.setValue("teamCount", numTeams as 4 | 8 | 16, { shouldValidate: true });
+    } else {
+      setCalculatedRounds(null);
+      // form.setValue("teamCount", undefined, { shouldValidate: true }); // Or handle invalid selection
+    }
+  };
+
   async function onSubmit(data: TournamentFormValues) {
+    if (calculatedRounds === null) {
+      toast({
+        title: "Invalid Team Count",
+        description: "Please select a valid number of teams to calculate rounds.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsSubmitting(true);
     const settings: TournamentSettings = {
       name: data.name,
       teamCount: data.teamCount as 4 | 8 | 16, // Zod ensures it's one of these
       startDate: data.startDate,
+      numberOfRounds: calculatedRounds,
     };
 
     const result = await createTournament(settings);
@@ -57,11 +80,12 @@ export default function CreateTournamentPage() {
     if (result.success) {
       toast({
         title: "Tournament Created!",
-        description: `Tournament "${data.name}" has been successfully created with ID: ${result.id}.`,
+        description: `Tournament "${data.name}" has been successfully created with ID: ${result.id}. It will have ${calculatedRounds} rounds.`,
         variant: "default",
         className: "bg-green-100 border-green-500 text-green-700 dark:bg-green-800 dark:text-green-200 dark:border-green-600"
       });
       form.reset(); 
+      setCalculatedRounds(null);
     } else {
       toast({
         title: "Error Creating Tournament",
@@ -108,10 +132,16 @@ export default function CreateTournamentPage() {
               <FormField
                 control={form.control}
                 name="teamCount"
-                render={({ field }) => (
+                render={({ field }) => ( // field is not directly used for Select's value due to calculatedRounds
                   <FormItem>
                     <FormLabel>Number of Teams</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value?.toString()}>
+                    <Select 
+                      onValueChange={(value) => {
+                        handleTeamCountChange(value);
+                        // field.onChange is handled by form.setValue in handleTeamCountChange
+                      }} 
+                      // defaultValue={field.value?.toString()} // Not needed with controlled form.setValue
+                    >
                       <FormControl>
                         <SelectTrigger className="bg-input">
                           <SelectValue placeholder="Select number of teams" />
@@ -130,6 +160,24 @@ export default function CreateTournamentPage() {
                   </FormItem>
                 )}
               />
+
+              <FormItem>
+                <FormLabel>Number of Rounds</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Hash className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input 
+                      value={calculatedRounds !== null ? calculatedRounds.toString() : "Select teams to see rounds"} 
+                      readOnly 
+                      disabled 
+                      className="bg-input pl-10" 
+                    />
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  This is automatically calculated based on the number of teams (1v1 matches).
+                </FormDescription>
+              </FormItem>
 
               <FormField
                 control={form.control}
@@ -176,7 +224,7 @@ export default function CreateTournamentPage() {
                 )}
               />
               
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isSubmitting}>
+              <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isSubmitting || calculatedRounds === null}>
                 {isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -191,3 +239,4 @@ export default function CreateTournamentPage() {
     </div>
   );
 }
+
