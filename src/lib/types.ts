@@ -50,3 +50,17 @@ export interface CenterDashboardData {
   chargebackPercentage: CenterMetric;
   flowThroughRate: CenterMetric;
 }
+
+// New type for data from Sheet1Rows collection
+export interface SheetRow {
+  id: string; // Firestore document ID
+  Agent?: string;
+  Date?: string;
+  FromCallback?: boolean; // Renamed to avoid space and question mark
+  INSURED_NAME?: string;  // Renamed to avoid space
+  LeadVender?: string;    // Renamed to avoid space
+  Notes?: string;
+  ProductType?: string;
+  Status?: string;
+  // Add any other fields you expect from the 'Sheet1Rows' documents
+}
