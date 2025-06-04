@@ -6,16 +6,15 @@ import BracketDisplay from '@/components/bracket/BracketDisplay';
 import { 
   initializeTournamentDataIfNeeded, 
   refreshAndSaveTournamentData,
-  TOURNAMENT_DOC_PATH, // Import constant
-  mapDocToTournamentData // Import helper
 } from '@/lib/tournament-service';
+import { TOURNAMENT_DOC_PATH, mapDocToTournamentData } from '@/lib/tournament-config'; // Corrected import path
 import type { TournamentData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Trophy, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { db } from '@/lib/firebase'; // Import db
-import { doc, onSnapshot } from 'firebase/firestore'; // Import onSnapshot and doc
+import { db } from '@/lib/firebase'; 
+import { doc, onSnapshot } from 'firebase/firestore'; 
 
 export default function BracketPage() {
   const [tournamentData, setTournamentData] = useState<TournamentData | null>(null);

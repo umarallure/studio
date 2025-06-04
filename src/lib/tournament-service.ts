@@ -2,21 +2,10 @@
 'use server'; 
 
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, DocumentData, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import type { TournamentData, Round, Team } from '@/lib/types';
 import { initialTournamentRounds, tournamentPrize } from '@/lib/mock-data';
-
-export const TOURNAMENT_DOC_PATH = 'tournaments/mainTournament';
-
-// Helper to ensure data from Firestore matches TournamentData type
-export function mapDocToTournamentData(docData: DocumentData | undefined): TournamentData | null {
-  if (!docData) return null;
-  return {
-    rounds: docData.rounds as Round[],
-    prize: docData.prize as string,
-  };
-}
-
+import { TOURNAMENT_DOC_PATH, mapDocToTournamentData } from '@/lib/tournament-config'; // Import from new config file
 
 export async function initializeTournamentDataIfNeeded(): Promise<void> {
   const tournamentDocRef = doc(db, TOURNAMENT_DOC_PATH);
@@ -161,7 +150,7 @@ export async function refreshAndSaveTournamentData(): Promise<void> {
   try {
     const docSnap = await getDoc(tournamentDocRef);
     if (docSnap.exists()) {
-      const currentData = mapDocToTournamentData(docSnap.data());
+      const currentData = mapDocToTournamentData(docSnap.data()); 
       if (currentData) {
         const updatedData = calculateUpdatedTournament(currentData);
         await updateDoc(tournamentDocRef, updatedData); 
