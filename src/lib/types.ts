@@ -64,3 +64,10 @@ export interface SheetRow {
   Status?: string;
   // Add any other fields you expect from the 'Sheet1Rows' documents
 }
+
+// Type for creating a new tournament
+export interface TournamentSettings {
+  name: string;
+  teamCount: 4 | 8 | 16;
+  startDate: Date;
+}

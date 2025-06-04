@@ -2,11 +2,11 @@
 'use server'; 
 
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import type { TournamentData } from '@/lib/types'; // Using updated types
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, Timestamp } from 'firebase/firestore';
+import type { TournamentData, TournamentSettings } from '@/lib/types'; // Using updated types
 // Removed initialTournamentRounds, tournamentPrize imports from mock-data as structure differs
 // Importing config details that are safe for server-side
-import { BRACKET_COLLECTION_PATH } from '@/lib/tournament-config'; 
+import { BRACKET_COLLECTION_PATH, mapDocToTournamentData, TOURNAMENT_DOC_PATH } from '@/lib/tournament-config'; 
 
 // This function's original purpose was to seed data based on mock-data.
 // The Apps Script now controls data population based on Google Sheets.
@@ -45,3 +45,23 @@ export async function refreshAndSaveTournamentData(): Promise<void> {
 
 // The calculateUpdatedTournament function is removed as it's based on the old data model
 // and conflicts with Apps Script's data management.
+
+export async function createTournament(settings: TournamentSettings): Promise<{success: boolean, id?: string, error?: string}> {
+  try {
+    const tournamentDataToSave = {
+      name: settings.name,
+      teamCount: settings.teamCount,
+      startDate: Timestamp.fromDate(settings.startDate), // Convert JS Date to Firestore Timestamp
+      createdAt: Timestamp.now(),
+    };
+    const docRef = await addDoc(collection(db, "tournaments"), tournamentDataToSave);
+    console.log("Tournament created with ID: ", docRef.id);
+    return { success: true, id: docRef.id };
+  } catch (error) {
+    console.error("Error creating tournament: ", error);
+    if (error instanceof Error) {
+      return { success: false, error: error.message };
+    }
+    return { success: false, error: "An unknown error occurred." };
+  }
+}

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
-import { Gamepad2, LogOut, LayoutDashboard, Trophy, FileText } from 'lucide-react'; // Added FileText
+import { Gamepad2, LogOut, LayoutDashboard, Trophy, FileText, PlusSquare } from 'lucide-react'; // Added FileText, PlusSquare
 import { cn } from '@/lib/utils';
 
 export default function Header() {
@@ -15,7 +15,8 @@ export default function Header() {
   const navItems = [
     { href: '/bracket', label: 'Bracket', icon: Trophy },
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/sheet-data', label: 'Sheet Data', icon: FileText }, // New navigation item
+    { href: '/sheet-data', label: 'Sheet Data', icon: FileText },
+    { href: '/create-tournament', label: 'New Tournament', icon: PlusSquare }, // New navigation item
   ];
 
   return (
