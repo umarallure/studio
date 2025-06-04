@@ -28,7 +28,7 @@ export async function refreshAndSaveTournamentData(): Promise<void> {
 }
 
 // Helper function to generate and save the global bracket structure
-async function _initializeGlobalBracketStructure(teamCount: number, numberOfRounds: number, tournamentIdForReference: string): Promise<void> {
+async function _initializeGlobalBracketStructure(teamCount: number, numberOfRounds: number, tournamentSettingsId: string): Promise<void> {
   const teams: string[] = Array.from({ length: teamCount }, (_, i) => `Team ${i + 1}`);
   const batch = writeBatch(db);
   let overallMatchIdCounter = 1;
@@ -49,7 +49,6 @@ async function _initializeGlobalBracketStructure(teamCount: number, numberOfRoun
         team2Name = teamsForCurrentRound[i * 2 + 1];
       }
       // For subsequent rounds, team names remain TBD as they depend on winners from previous round matches.
-      // The Apps Script logic would populate these based on advancement.
       // This initialization just sets up the structure.
 
       const matchDocRef = doc(db, BRACKET_COLLECTION_PATH, String(roundNum), 'matches', matchId);
@@ -60,20 +59,19 @@ async function _initializeGlobalBracketStructure(teamCount: number, numberOfRoun
           team1Wins: { integerValue: 0 },
           team2Wins: { integerValue: 0 },
           advanced: { nullValue: null },
-          // Optional: Reference which tournament settings initialized this bracket
-          // initializedByTournamentId: { stringValue: tournamentIdForReference }
+          tournamentSettingsId: { stringValue: tournamentSettingsId } // Link to the tournament settings
         }
       };
       batch.set(matchDocRef, matchData);
       matchesInThisRound.push(matchId);
     }
     matchesInPreviousRoundIds = [...matchesInThisRound];
-    if (numMatchesThisRound === 1 && roundNum > 1) break; // Final match processed
+    if (numMatchesThisRound === 1 && roundNum > 1 && matchesInThisRound.length === 1) break; // Final match processed
   }
 
   try {
     await batch.commit();
-    console.log(`Global bracket structure initialized for ${teamCount} teams and ${numberOfRounds} rounds. Referenced by tournament settings ID: ${tournamentIdForReference}`);
+    console.log(`Global bracket structure initialized for ${teamCount} teams and ${numberOfRounds} rounds. Referenced by tournament settings ID: ${tournamentSettingsId}`);
   } catch (error) {
     console.error("Error initializing global bracket structure:", error);
     throw error; // Re-throw to be caught by calling function
@@ -93,7 +91,7 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
     const docRef = await addDoc(collection(db, "tournaments"), tournamentDataToSave);
     console.log("Tournament settings created with ID: ", docRef.id, " Data: ", tournamentDataToSave);
 
-    // Now, initialize the global bracket structure based on these settings
+    // Now, initialize the global bracket structure based on these settings, passing the new tournament's ID
     await _initializeGlobalBracketStructure(settings.teamCount, settings.numberOfRounds, docRef.id);
 
     return { success: true, id: docRef.id };
@@ -105,3 +103,4 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
     return { success: false, error: "An unknown error occurred during tournament creation or bracket initialization." };
   }
 }
+
