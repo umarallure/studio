@@ -1,46 +1,56 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import BracketDisplay from '@/components/bracket/BracketDisplay';
-import { TOURNAMENT_DOC_PATH_UNUSED, BRACKET_COLLECTION_PATH, mapFirestoreDocToMatchup } from '@/lib/tournament-config';
+import { BRACKET_COLLECTION_PATH, mapFirestoreDocToMatchup } from '@/lib/tournament-config';
 import type { TournamentData, Round, Matchup as MatchupType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Trophy, Loader2 } from 'lucide-react';
+import { RefreshCw, Trophy, Loader2, AlertTriangle, Info, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { db } from '@/lib/firebase';
-import { collection, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
-import { tournamentPrize } from '@/lib/mock-data'; // Keep static prize for now
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { tournamentPrize } from '@/lib/mock-data';
 
-// Define round names, assuming up to 4 rounds as in Apps Script example
 const ROUND_NAMES: { [key: string]: string } = {
-  "1": "Round 1: Initial Matches", // Or "Quarter-Finals" if always 8 teams
+  "1": "Round 1: Initial Matches",
   "2": "Round 2: Semi-Finals",
   "3": "Round 3: Grand Finals",
-  "4": "Round 4: Placeholder if used" // Adjust as per actual max rounds
+  "4": "Round 4: Placeholder", // Should match bracketRounds from Apps Script if used
 };
-const MAX_ROUNDS_TO_FETCH = 3; // Configure how many rounds to fetch (e.g., for an 8-team bracket)
+const MAX_ROUNDS_TO_FETCH = 3; // Configure based on expected max rounds (e.g., 8 teams -> 3 rounds)
 
 export default function BracketPage() {
   const [tournamentData, setTournamentData] = useState<TournamentData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false); // This button might be removed or repurposed
+  const [criticalError, setCriticalError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     setIsLoading(true);
+    setCriticalError(null);
     const unsubscribes: (() => void)[] = [];
-    
-    // Store intermediate round data to build the final tournamentData
     let roundsDataCollector: { [roundId: string]: MatchupType[] } = {};
+    
+    let listenersAttachedOrFailed = 0;
+    const totalListenersExpected = MAX_ROUNDS_TO_FETCH;
+
+    const checkAllListenersProcessed = () => {
+      listenersAttachedOrFailed++;
+      if (listenersAttachedOrFailed >= totalListenersExpected) {
+        setIsLoading(false);
+        if (Object.keys(roundsDataCollector).length === 0 && !criticalError) {
+          // If no data was collected from any successful listener and no critical error set yet
+          // This implies rounds might not exist or are empty.
+        }
+      }
+    };
 
     for (let i = 1; i <= MAX_ROUNDS_TO_FETCH; i++) {
       const roundId = String(i);
       const matchesCollectionRef = collection(db, BRACKET_COLLECTION_PATH, roundId, 'matches');
-      // Assuming match IDs are sortable like 'match1', 'match2' or have a numeric part.
-      // If not, and order is critical, the Apps Script should ensure consistent ID naming.
-      const q = query(matchesCollectionRef, orderBy('__name__')); // Order by document ID string
+      const q = query(matchesCollectionRef, orderBy('__name__'));
 
       const unsubscribeRound = onSnapshot(q, (snapshot) => {
         const matchupsForRound: MatchupType[] = [];
@@ -51,109 +61,147 @@ export default function BracketPage() {
           }
         });
         
-        // Ensure matchups are sorted if Firestore default ID sort isn't sufficient
-        // e.g. if IDs are 'match1', 'match10', 'match2', default sort is lexical.
-        // A common pattern is numeric IDs or zero-padded IDs for natural sort.
-        // For now, relying on Firestore's default ID sort or assuming IDs sort naturally.
-
-
         roundsDataCollector[roundId] = matchupsForRound;
 
-        // Reconstruct TournamentData
         const newRounds: Round[] = Object.keys(roundsDataCollector)
+          .filter(rId => !isNaN(parseInt(rId))) // Ensure we only process numeric round IDs
           .map(rId => ({
             id: rId,
             name: ROUND_NAMES[rId] || `Round ${rId}`,
             matchups: roundsDataCollector[rId].sort((a,b) => {
-                // Attempt to sort by a numeric part of the ID if 'matchX' format
                 const numA = parseInt(a.id.replace('match', ''), 10);
                 const numB = parseInt(b.id.replace('match', ''), 10);
                 if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                return a.id.localeCompare(b.id); // Fallback to string sort
+                return a.id.localeCompare(b.id);
             }),
           }))
-          .sort((a, b) => parseInt(a.id) - parseInt(b.id)); // Sort rounds by ID
+          .sort((a, b) => parseInt(a.id) - parseInt(b.id));
 
         setTournamentData({ rounds: newRounds, prize: tournamentPrize });
-        setIsLoading(false);
+        checkAllListenersProcessed(); // Mark this listener as successfully processed
+        setCriticalError(null); // Clear previous critical errors if data starts flowing
 
       }, (error) => {
         console.error(`Error fetching matchups for round ${roundId}:`, error);
         toast({
-          title: "Error Loading Bracket",
-          description: `Could not load data for round ${roundId}.`,
+          title: `Error Loading Round ${roundId}`,
+          description: `Could not load data for round ${roundId}. It might be incomplete.`,
           variant: "destructive",
         });
-        setIsLoading(false); // Stop loading on error for this round
+        checkAllListenersProcessed(); // Mark this listener as failed
+        // If multiple rounds fail, criticalError might be set multiple times, last one wins.
+        // We could accumulate errors if needed.
+        setCriticalError(prev => prev || `Failed to load data for Round ${roundId}.`);
       });
       unsubscribes.push(unsubscribeRound);
     }
 
+    const loadingTimeout = setTimeout(() => {
+      if (listenersAttachedOrFailed < totalListenersExpected) {
+        setIsLoading(false);
+        if (!criticalError && Object.keys(roundsDataCollector).length === 0) {
+             setCriticalError("Loading tournament data timed out. Some rounds may not exist or failed to load.");
+             toast({
+                title: "Loading Timeout",
+                description: "Could not retrieve all bracket data in time. The display may be incomplete.",
+                variant: "warning",
+             });
+        } else if (!criticalError) {
+            // Some data might have loaded, but not all listeners responded
+            toast({
+                title: "Partial Data Loaded",
+                description: "Not all rounds responded in time. Display may be incomplete.",
+                variant: "warning",
+             });
+        }
+      }
+    }, 15000); // 15 seconds timeout
+
     return () => {
       unsubscribes.forEach(unsub => unsub());
+      clearTimeout(loadingTimeout);
     };
   }, [toast]);
 
-  const handleRefreshData = async () => {
-    // This function's original purpose (simulating scores) is now handled by Apps Script.
-    // It could be removed, or used to manually trigger a re-fetch if absolutely necessary,
-    // but onSnapshot should handle realtime updates.
-    if (isRefreshing) return;
-    setIsRefreshing(true);
+  const confirmLiveUpdates = () => {
     toast({
-      title: "Realtime Updates Active",
-      description: "Bracket data updates automatically from the server.",
+      title: "Live Updates Active",
+      description: "Bracket data updates in real-time from the server.",
       variant: "default",
       duration: 3000,
+      className: "bg-green-100 border-green-500 text-green-700 dark:bg-green-800 dark:text-green-200 dark:border-green-600"
     });
-    // Simulating a delay for UX, then resetting
-    setTimeout(() => setIsRefreshing(false), 1000);
   };
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 space-y-4">
+      <div className="flex flex-col items-center justify-center py-10 space-y-4 min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="text-lg text-foreground">Loading tournament data from Firestore...</p>
+        <p className="text-lg text-foreground font-headline">Loading Tournament Bracket...</p>
       </div>
     );
   }
   
-  if (!tournamentData || tournamentData.rounds.length === 0) {
+  if (criticalError && (!tournamentData || tournamentData.rounds.length === 0 || tournamentData.rounds.every(r => r.matchups.length === 0))) {
      return (
-      <div className="flex flex-col items-center justify-center py-10 space-y-4">
-        <p className="text-lg text-destructive">Could not load tournament data or no rounds found.</p>
-        <p className="text-sm text-muted-foreground">Please ensure the Apps Script is populating bracket data in Firestore under '{BRACKET_COLLECTION_PATH}/[roundNum]/matches'.</p>
-        <Button onClick={() => window.location.reload()} variant="outline">
-          Try Reloading
+      <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
+        <AlertTriangle className="h-16 w-16 text-destructive" />
+        <h2 className="text-3xl font-headline text-destructive mt-4">Error Loading Bracket</h2>
+        <p className="text-muted-foreground max-w-lg">{criticalError}</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Please ensure your Google Apps Script is correctly populating data in Firestore under the path:
+          <br /> <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches</code>.
+          <br />Also, check your internet connection and Firestore security rules.
+        </p>
+        <Button onClick={() => window.location.reload()} variant="destructive" className="mt-6">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Try Reloading Page
         </Button>
       </div>
     );
   }
+  
+  const noDataExists = !criticalError && (!tournamentData || tournamentData.rounds.length === 0 || tournamentData.rounds.every(r => r.matchups.length === 0));
 
+  if (noDataExists) {
+     return (
+      <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
+        <Info className="h-16 w-16 text-primary" />
+        <h2 className="text-3xl font-headline text-primary mt-4">Tournament Data Not Yet Available</h2>
+        <p className="text-muted-foreground max-w-lg">
+          Waiting for matchups to be populated by the Google Apps Script. They will appear here in real-time once available in Firestore.
+          <br/>Ensure data is being written to: <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches</code>.
+        </p>
+        <Button onClick={() => window.location.reload()} variant="outline" className="mt-6">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refresh Page
+        </Button>
+      </div>
+    );
+  }
+  
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-card rounded-lg shadow">
         <h1 className="font-headline text-3xl md:text-4xl font-bold text-primary">Tournament Bracket</h1>
-        <Button onClick={handleRefreshData} variant="outline" className="border-accent text-accent hover:bg-accent/10" disabled={isRefreshing}>
-          {isRefreshing ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          Bracket Synced
+        <Button onClick={confirmLiveUpdates} variant="ghost" className="text-accent hover:bg-accent/10 hover:text-accent-foreground">
+          <CheckCircle className="mr-2 h-5 w-5" />
+          Live Updates Active
         </Button>
       </div>
 
-      <Alert className="border-accent bg-accent/5">
-        <Trophy className="h-5 w-5 text-accent" />
-        <AlertTitle className="font-headline text-accent">Tournament Prize</AlertTitle>
-        <AlertDescription>
-          {tournamentData.prize}
-        </AlertDescription>
-      </Alert>
+      {tournamentData?.prize && (
+        <Alert className="border-accent bg-accent/5 text-accent-foreground">
+            <Trophy className="h-5 w-5 text-accent" />
+            <AlertTitle className="font-headline text-accent">{tournamentData.prize ? "Tournament Prize" : "Prize Information"}</AlertTitle>
+            <AlertDescription className="text-accent/90">
+            {tournamentData.prize || "Details about the tournament prize will be shown here."}
+            </AlertDescription>
+        </Alert>
+      )}
       
-      <BracketDisplay tournamentData={tournamentData} />
+      {tournamentData && tournamentData.rounds.length > 0 && <BracketDisplay tournamentData={tournamentData} />}
     </div>
   );
 }
+
