@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Loader2, PlusSquare, Hash } from "lucide-react"; // Added Hash icon
+import { CalendarIcon, Loader2, PlusSquare, Hash } from "lucide-react";
 import { createTournament } from '@/lib/tournament-service';
 import type { TournamentSettings } from '@/lib/types';
 
@@ -54,7 +54,6 @@ export default function CreateTournamentPage() {
       form.setValue("teamCount", numTeams as 4 | 8 | 16, { shouldValidate: true });
     } else {
       setCalculatedRounds(null);
-      // form.setValue("teamCount", undefined, { shouldValidate: true }); // Or handle invalid selection
     }
   };
 
@@ -70,7 +69,7 @@ export default function CreateTournamentPage() {
     setIsSubmitting(true);
     const settings: TournamentSettings = {
       name: data.name,
-      teamCount: data.teamCount as 4 | 8 | 16, // Zod ensures it's one of these
+      teamCount: data.teamCount as 4 | 8 | 16,
       startDate: data.startDate,
       numberOfRounds: calculatedRounds,
     };
@@ -79,13 +78,19 @@ export default function CreateTournamentPage() {
 
     if (result.success) {
       toast({
-        title: "Tournament Created!",
-        description: `Tournament "${data.name}" has been successfully created with ID: ${result.id}. It will have ${calculatedRounds} rounds.`,
+        title: "Tournament Created & Bracket Initialized!",
+        description: `Tournament "${data.name}" settings saved. The global bracket has been set up with ${settings.teamCount} teams and ${calculatedRounds} rounds.`,
         variant: "default",
         className: "bg-green-100 border-green-500 text-green-700 dark:bg-green-800 dark:text-green-200 dark:border-green-600"
       });
-      form.reset(); 
+      form.reset({ name: "", teamCount: undefined, startDate: undefined });
       setCalculatedRounds(null);
+       // Manually reset select if needed, or ensure form.reset clears it
+      const teamCountSelectTrigger = document.querySelector('#teamCountSelect button');
+      if (teamCountSelectTrigger) {
+        // This is a bit of a hack to clear visual selection, react-hook-form handles state
+        // A more robust way might involve controlling Select's value prop directly if form.reset isn't enough
+      }
     } else {
       toast({
         title: "Error Creating Tournament",
@@ -107,7 +112,7 @@ export default function CreateTournamentPage() {
       <Card className="max-w-2xl mx-auto shadow-lg">
         <CardHeader>
           <CardTitle>Tournament Details</CardTitle>
-          <CardDescription>Fill in the information below to set up a new tournament.</CardDescription>
+          <CardDescription>Fill in the information below to set up a new tournament. This will initialize the global tournament bracket.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -122,7 +127,7 @@ export default function CreateTournamentPage() {
                       <Input placeholder="e.g., Annual Championship" {...field} className="bg-input" />
                     </FormControl>
                     <FormDescription>
-                      Choose a descriptive name for your tournament.
+                      Choose a descriptive name for your tournament settings.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -132,18 +137,17 @@ export default function CreateTournamentPage() {
               <FormField
                 control={form.control}
                 name="teamCount"
-                render={({ field }) => ( // field is not directly used for Select's value due to calculatedRounds
+                render={({ field }) => ( 
                   <FormItem>
                     <FormLabel>Number of Teams</FormLabel>
-                    <Select 
+                    <Select
                       onValueChange={(value) => {
                         handleTeamCountChange(value);
-                        // field.onChange is handled by form.setValue in handleTeamCountChange
-                      }} 
-                      // defaultValue={field.value?.toString()} // Not needed with controlled form.setValue
+                      }}
+                      value={field.value?.toString()} // Control the select value
                     >
                       <FormControl>
-                        <SelectTrigger className="bg-input">
+                        <SelectTrigger className="bg-input" id="teamCountSelect">
                           <SelectValue placeholder="Select number of teams" />
                         </SelectTrigger>
                       </FormControl>
@@ -166,11 +170,11 @@ export default function CreateTournamentPage() {
                 <FormControl>
                   <div className="relative">
                     <Hash className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input 
-                      value={calculatedRounds !== null ? calculatedRounds.toString() : "Select teams to see rounds"} 
-                      readOnly 
-                      disabled 
-                      className="bg-input pl-10" 
+                    <Input
+                      value={calculatedRounds !== null ? calculatedRounds.toString() : "Select teams to see rounds"}
+                      readOnly
+                      disabled
+                      className="bg-input pl-10"
                     />
                   </div>
                 </FormControl>
@@ -223,14 +227,14 @@ export default function CreateTournamentPage() {
                   </FormItem>
                 )}
               />
-              
+
               <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isSubmitting || calculatedRounds === null}>
                 {isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <PlusSquare className="mr-2 h-4 w-4" />
                 )}
-                Create Tournament
+                Create Tournament & Initialize Bracket
               </Button>
             </form>
           </Form>
@@ -239,4 +243,3 @@ export default function CreateTournamentPage() {
     </div>
   );
 }
-
