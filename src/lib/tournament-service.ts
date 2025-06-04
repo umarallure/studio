@@ -37,9 +37,9 @@ export async function initializeTournamentDataIfNeeded(): Promise<void> {
   }
 }
 
-export function getTournamentDataListener(
+export async function getTournamentDataListener(
   callback: (data: TournamentData | null) => void
-): () => void { // Returns an unsubscribe function
+): Promise<() => void> { // Returns an unsubscribe function
   const tournamentDocRef = doc(db, TOURNAMENT_DOC_PATH);
   
   const unsubscribe = onSnapshot(tournamentDocRef, (docSnap) => {

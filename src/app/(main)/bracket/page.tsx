@@ -26,7 +26,7 @@ export default function BracketPage() {
       setIsLoading(true);
       await initializeTournamentDataIfNeeded(); // Ensure data exists
       
-      const unsubscribe = getTournamentDataListener((data) => {
+      const unsubscribe = await getTournamentDataListener((data) => {
         setTournamentData(data);
         setIsLoading(false); // Stop loading once data is received (or null if error)
       });
