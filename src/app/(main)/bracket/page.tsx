@@ -150,7 +150,7 @@ export default function BracketPage() {
         <p className="text-muted-foreground max-w-lg">{criticalError}</p>
         <p className="text-sm text-muted-foreground mt-2">
           Please ensure your Google Apps Script is correctly populating data in Firestore under the path:
-          <br /> <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches</code>.
+          <br /> <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches/[matchId]</code>.
           <br />Also, check your internet connection and Firestore security rules.
         </p>
         <Button onClick={() => window.location.reload()} variant="destructive" className="mt-6">
@@ -167,10 +167,10 @@ export default function BracketPage() {
      return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
         <Info className="h-16 w-16 text-primary" />
-        <h2 className="text-3xl font-headline text-primary mt-4">Tournament Data Not Yet Available</h2>
+        <h2 className="text-3xl font-headline text-primary mt-4">Tournament Bracket is Empty</h2>
         <p className="text-muted-foreground max-w-lg">
-          Waiting for matchups to be populated by the Google Apps Script. They will appear here in real-time once available in Firestore.
-          <br/>Ensure data is being written to: <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches</code>.
+          Matchups will appear here automatically in real-time as they are added by the Google Apps Script.
+          <br/>Please ensure data is being written to Firestore at: <code className="text-xs bg-muted p-1 rounded inline-block my-1">{BRACKET_COLLECTION_PATH}/[roundNum]/matches/[matchId]</code>.
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="mt-6">
           <RefreshCw className="mr-2 h-4 w-4" />
