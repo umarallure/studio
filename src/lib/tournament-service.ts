@@ -2,23 +2,32 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, addDoc, Timestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, Timestamp, writeBatch, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import type { TournamentData, TournamentSettings } from '@/lib/types';
-import { BRACKET_COLLECTION_PATH, mapDocToTournamentData } from '@/lib/tournament-config';
+// mapDocToTournamentData is less relevant now as TournamentData will be built differently on client.
+// BRACKET_COLLECTION_PATH is removed as paths are now dynamic under tournaments.
 
 // This function's original purpose was to seed data based on mock-data.
 // The Apps Script now controls data population based on Google Sheets.
 // This function might be deprecated or adapted if specific initialization from Next.js is needed.
 export async function initializeTournamentDataIfNeeded(): Promise<void> {
   console.log("initializeTournamentDataIfNeeded called. Note: Apps Script is primary data source for bracket structure if active. Form creation can also initialize it.");
-  const round1DocRef = doc(db, BRACKET_COLLECTION_PATH, "1", "matches", "match1");
-  try {
-    const docSnap = await getDoc(round1DocRef);
-    if (!docSnap.exists()) {
-      console.log("Global bracket (e.g., bracket/1/matches/match1) does not exist. It can be initialized by creating a new tournament via the UI or by the Apps Script.");
+  // Check if any tournament exists
+  const tournamentsQuery = query(collection(db, "tournaments"), limit(1));
+  const querySnapshot = await getDocs(tournamentsQuery);
+  if (querySnapshot.empty) {
+    console.log("No tournaments found. A new tournament can be created via the UI, which will also initialize its bracket structure.");
+  } else {
+    const tournamentDoc = querySnapshot.docs[0];
+    const firstMatchDocRef = doc(db, "tournaments", tournamentDoc.id, "rounds", "1", "matches", "match1");
+     try {
+        const docSnap = await getDoc(firstMatchDocRef);
+        if (!docSnap.exists()) {
+        console.log(`Bracket for tournament ${tournamentDoc.id} (e.g., tournaments/${tournamentDoc.id}/rounds/1/matches/match1) might not be fully initialized. It can be initialized by creating a new tournament via the UI.`);
+        }
+    } catch (error) {
+        console.error("Error during minimal initialization check:", error);
     }
-  } catch (error) {
-    console.error("Error during minimal initialization check:", error);
   }
 }
 
@@ -27,8 +36,8 @@ export async function refreshAndSaveTournamentData(): Promise<void> {
   return Promise.resolve();
 }
 
-// Helper function to generate and save the global bracket structure
-async function _initializeGlobalBracketStructure(teamCount: number, numberOfRounds: number, tournamentSettingsId: string): Promise<void> {
+// Helper function to generate and save the bracket structure under a specific tournament
+async function _initializeTournamentBracketStructure(tournamentId: string, teamCount: number, numberOfRounds: number): Promise<void> {
   const teams: string[] = Array.from({ length: teamCount }, (_, i) => `Team ${i + 1}`);
   const batch = writeBatch(db);
   let overallMatchIdCounter = 1;
@@ -51,7 +60,7 @@ async function _initializeGlobalBracketStructure(teamCount: number, numberOfRoun
       // For subsequent rounds, team names remain TBD as they depend on winners from previous round matches.
       // This initialization just sets up the structure.
 
-      const matchDocRef = doc(db, BRACKET_COLLECTION_PATH, String(roundNum), 'matches', matchId);
+      const matchDocRef = doc(db, "tournaments", tournamentId, "rounds", String(roundNum), 'matches', matchId);
       const matchData = {
         fields: {
           team1: { stringValue: team1Name },
@@ -59,7 +68,7 @@ async function _initializeGlobalBracketStructure(teamCount: number, numberOfRoun
           team1Wins: { integerValue: 0 },
           team2Wins: { integerValue: 0 },
           advanced: { nullValue: null },
-          tournamentSettingsId: { stringValue: tournamentSettingsId } // Link to the tournament settings
+          // tournamentSettingsId is removed as nesting implies the link
         }
       };
       batch.set(matchDocRef, matchData);
@@ -71,9 +80,9 @@ async function _initializeGlobalBracketStructure(teamCount: number, numberOfRoun
 
   try {
     await batch.commit();
-    console.log(`Global bracket structure initialized for ${teamCount} teams and ${numberOfRounds} rounds. Referenced by tournament settings ID: ${tournamentSettingsId}`);
+    console.log(`Bracket structure for tournament ${tournamentId} initialized with ${teamCount} teams and ${numberOfRounds} rounds.`);
   } catch (error) {
-    console.error("Error initializing global bracket structure:", error);
+    console.error(`Error initializing bracket structure for tournament ${tournamentId}:`, error);
     throw error; // Re-throw to be caught by calling function
   }
 }
@@ -91,8 +100,8 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
     const docRef = await addDoc(collection(db, "tournaments"), tournamentDataToSave);
     console.log("Tournament settings created with ID: ", docRef.id, " Data: ", tournamentDataToSave);
 
-    // Now, initialize the global bracket structure based on these settings, passing the new tournament's ID
-    await _initializeGlobalBracketStructure(settings.teamCount, settings.numberOfRounds, docRef.id);
+    // Now, initialize the bracket structure for this specific tournament
+    await _initializeTournamentBracketStructure(docRef.id, settings.teamCount, settings.numberOfRounds);
 
     return { success: true, id: docRef.id };
   } catch (error) {
@@ -103,4 +112,3 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
     return { success: false, error: "An unknown error occurred during tournament creation or bracket initialization." };
   }
 }
-

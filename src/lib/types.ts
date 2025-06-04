@@ -6,7 +6,7 @@ export interface Team {
   dailyWinsInMatchup?: number; // How many daily wins this team has in the current matchup
 }
 
-// Represents a matchup as stored in Firestore under bracket/{round}/matches/{matchId}
+// Represents a matchup as stored in Firestore under tournaments/{tournamentId}/rounds/{roundNum}/matches/{matchId}
 export interface Matchup {
   id: string; // e.g., "match1"
   roundId: string; // e.g., "1", "2"
@@ -15,7 +15,6 @@ export interface Matchup {
   team1DailyWins: number;   // From Firestore fields.team1Wins.integerValue
   team2DailyWins: number;   // From Firestore fields.team2Wins.integerValue
   seriesWinnerName: string | null; // From Firestore fields.advanced.stringValue
-  // If we need to show individual day scores, we might add a sub-collection fetch here
 }
 
 // Represents a round in the tournament
@@ -27,7 +26,12 @@ export interface Round {
 
 // Overall tournament data structure
 export interface TournamentData {
-  rounds: Round[];
+  id: string; // Firestore document ID of the tournament
+  name: string;
+  teamCount: 4 | 8 | 16;
+  numberOfRounds: number;
+  startDate: Date; // Keep as Date object for UI, convert to Timestamp for Firestore
+  rounds: Round[]; // The actual bracket rounds and matches
   prize: string; // Can remain static or be fetched if stored separately
 }
 
@@ -65,11 +69,12 @@ export interface SheetRow {
   // Add any other fields you expect from the 'Sheet1Rows' documents
 }
 
-// Type for creating a new tournament
+// Type for creating/fetching a tournament's settings
 export interface TournamentSettings {
+  id?: string; // Firestore document ID, optional for creation
   name: string;
   teamCount: 4 | 8 | 16;
-  startDate: Date;
+  startDate: Date; // Keep as Date for form, convert to/from Timestamp for Firestore
   numberOfRounds: number;
+  createdAt?: Date; // Firestore Timestamp, converted to Date
 }
-
