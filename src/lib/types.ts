@@ -38,11 +38,11 @@ export interface TournamentData {
 }
 
 
-// Types for Center Dashboard remain unchanged by this refactor
+// Types for Center Dashboard
 export interface CenterMetric {
   id: string;
   title: string;
-  value: string | number;
+  value: string | number; // This will be updated dynamically for daily submissions
   previousValue?: string | number;
   unit?: string;
   trend?: 'up' | 'down' | 'neutral';
@@ -61,14 +61,13 @@ export interface CenterDashboardData {
 export interface SheetRow {
   id: string; // Firestore document ID
   Agent?: string;
-  Date?: string;
-  FromCallback?: boolean; // Renamed to avoid space and question mark
-  INSURED_NAME?: string;  // Renamed to avoid space
-  LeadVender?: string;    // Renamed to avoid space
+  Date?: string; // Expected as YYYY-MM-DD or similar after normalization
+  FromCallback?: boolean; 
+  INSURED_NAME?: string;
+  LeadVender?: string;    
   Notes?: string;
   ProductType?: string;
   Status?: string;
-  // Add any other fields you expect from the 'Sheet1Rows' documents
 }
 
 // Type for creating/fetching a tournament's settings
@@ -83,3 +82,13 @@ export interface TournamentSettings {
   status?: string; // e.g., "Scheduled", "Ongoing", "Completed"
 }
 
+// Type for Genkit flow to get daily submissions
+export interface DailySubmissionsInput {
+  targetDate: string; // YYYY-MM-DD
+  leadVenderFilter?: string | null; // Optional: filter by specific LeadVender
+}
+
+export interface DailySubmissionsOutput {
+  submissionCount: number;
+  // Potentially other metrics in the future
+}
