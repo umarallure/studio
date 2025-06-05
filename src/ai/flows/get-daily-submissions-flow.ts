@@ -16,13 +16,13 @@ import { mapDocToSheetRow } from '@/lib/tournament-config';
 import type { SheetRow } from '@/lib/types';
 import { format as formatDate } from 'date-fns';
 
-export const DailySubmissionsInputSchema = z.object({
+const DailySubmissionsInputSchema = z.object({
   targetDate: z.string().describe("The target date for submissions in YYYY-MM-DD format."),
   leadVenderFilter: z.string().nullable().optional().describe("Optional: The 'LeadVender' name to filter submissions for a specific center/team. If null or undefined, all submissions for the date are counted."),
 });
 export type DailySubmissionsInput = z.infer<typeof DailySubmissionsInputSchema>;
 
-export const DailySubmissionsOutputSchema = z.object({
+const DailySubmissionsOutputSchema = z.object({
   submissionCount: z.number().describe("The total number of 'Submitted' entries for the given date and filter."),
   processedDate: z.string().describe("The date for which submissions were processed."),
   filterApplied: z.string().nullable().optional().describe("The LeadVender filter that was applied, if any."),
