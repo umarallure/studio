@@ -2,20 +2,20 @@
 'use server';
 
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, addDoc, Timestamp, writeBatch, query, orderBy, limit, type DocumentData, getDocs, type WhereFilterOp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, Timestamp, writeBatch, query, orderBy, limit, type DocumentData, getDocs } from 'firebase/firestore';
 import type { TournamentSettings, SheetRow } from '@/lib/types';
-import { format as formatDate, addDays, parseISO, isFuture, isEqual } from 'date-fns';
+import { format as formatDate, addDays, parseISO, isFuture, isEqual, getDay } from 'date-fns';
 import { mapDocToSheetRow } from '@/lib/tournament-config';
 
 
-// Helper function to create daily result placeholders for a match for a specific week
+// Helper function to create daily result placeholders for a match for a specific week, considering only working days (Mon-Fri)
 async function _createDailyResultPlaceholdersForMatch(
   tournamentId: string,
   roundNumStr: string,
   matchId: string,
   team1Name: string,
   team2Name: string,
-  effectiveMatchStartDate: Date, // The specific start date for this match's 5-day series
+  effectiveMatchStartDate: Date, // The specific start date for this match's series
   batch: FirebaseFirestore.WriteBatch,
   details: string[]
 ) {
@@ -24,25 +24,40 @@ async function _createDailyResultPlaceholdersForMatch(
     return;
   }
 
-  for (let dayIndex = 0; dayIndex < 5; dayIndex++) {
-    const matchDate = addDays(effectiveMatchStartDate, dayIndex);
-    const dateString = formatDate(matchDate, 'yyyy-MM-dd');
-    const dailyResultDocRef = doc(db, "tournaments", tournamentId, "rounds", roundNumStr, 'matches', matchId, 'dailyResults', dateString);
-    
-    const dailyResultData = {
-      fields: {
-        team1: { stringValue: team1Name },
-        team2: { stringValue: team2Name },
-        team1Score: { integerValue: 0 },
-        team2Score: { integerValue: 0 },
-        winner: { nullValue: null },
-        loser: { nullValue: null },
-        status: { stringValue: "Scheduled" }
-      }
-    };
-    batch.set(dailyResultDocRef, dailyResultData);
+  let workingDaysScheduled = 0;
+  let calendarDayOffset = 0;
+  const scheduledDates: string[] = [];
+
+  while (workingDaysScheduled < 5) {
+    const currentDate = addDays(effectiveMatchStartDate, calendarDayOffset);
+    const dayOfWeek = getDay(currentDate); // 0 (Sun) to 6 (Sat)
+
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday
+      const dateString = formatDate(currentDate, 'yyyy-MM-dd');
+      scheduledDates.push(dateString);
+      const dailyResultDocRef = doc(db, "tournaments", tournamentId, "rounds", roundNumStr, 'matches', matchId, 'dailyResults', dateString);
+      
+      const dailyResultData = {
+        fields: {
+          team1: { stringValue: team1Name },
+          team2: { stringValue: team2Name },
+          team1Score: { integerValue: 0 },
+          team2Score: { integerValue: 0 },
+          winner: { nullValue: null },
+          loser: { nullValue: null },
+          status: { stringValue: "Scheduled" }
+        }
+      };
+      batch.set(dailyResultDocRef, dailyResultData);
+      workingDaysScheduled++;
+    }
+    calendarDayOffset++;
+    if (calendarDayOffset > 20 && workingDaysScheduled < 5) { // Safety break for extreme date offsets
+        details.push(`Warning: Could not find 5 working days within a reasonable offset for R${roundNumStr} M${matchId} starting ${formatDate(effectiveMatchStartDate, 'yyyy-MM-dd')}. Scheduled ${workingDaysScheduled} days.`);
+        break;
+    }
   }
-  details.push(`Ensured 5 daily result placeholders for R${roundNumStr} M${matchId} (${team1Name} vs ${team2Name}) starting ${formatDate(effectiveMatchStartDate, 'yyyy-MM-dd')}.`);
+  details.push(`Ensured 5 working day result placeholders for R${roundNumStr} M${matchId} (${team1Name} vs ${team2Name}). Dates: ${scheduledDates.join(', ')}.`);
 }
 
 // Helper function to check if a round is complete and set up the next round
@@ -84,20 +99,18 @@ async function _checkAndAdvanceToNextRound(
       const tournamentWinnerName = winnersFromCurrentRound[0];
       details.push(`Tournament "${tournamentSettings.name}" concluded! Overall Winner: ${tournamentWinnerName}.`);
       const tournamentDocRef = doc(db, "tournaments", activeTournamentId);
-      // Update the main tournament document with the winner and status
       batch.update(tournamentDocRef, { 
-        "overallWinnerName": tournamentWinnerName, // Assuming top-level field
-        "status": "Completed" // Assuming top-level field
+        overallWinnerName: tournamentWinnerName, 
+        status: "Completed" 
       });
     } else if (allCurrentRoundMatchesConcluded && winnersFromCurrentRound.length !== 1) {
       details.push(`Final round ${currentRoundNumStr} of "${tournamentSettings.name}" is complete, but an unexpected number of winners (${winnersFromCurrentRound.length}) found. Expected 1.`);
     } else {
       details.push(`Final round ${currentRoundNumStr} of "${tournamentSettings.name}" is not yet fully concluded.`);
     }
-    return; // No "next" round to set up
+    return; 
   }
   
-  // If not the final round, proceed with advancement logic
   if (!allCurrentRoundMatchesConcluded) {
     details.push(`Round ${currentRoundNumStr} is not yet complete. Not advancing to round ${nextRoundNumStr}.`);
     return;
@@ -126,10 +139,8 @@ async function _checkAndAdvanceToNextRound(
       return;
   }
 
-  // Calculate the start date for the next round's matches (1 week after the previous round's start)
-  // The start date for Round R is: tournamentStartDate + (R - 1) * 7 days
   const nextRoundEffectiveStartDate = addDays(tournamentSettings.startDate, (nextRoundNumInt - 1) * 7);
-  details.push(`Next round (${nextRoundNumStr}) matches will be scheduled starting: ${formatDate(nextRoundEffectiveStartDate, 'yyyy-MM-dd')}`);
+  details.push(`Next round (${nextRoundNumStr}) matches will be scheduled starting week of: ${formatDate(nextRoundEffectiveStartDate, 'yyyy-MM-dd')}`);
 
 
   for (let i = 0; i < nextRoundMatchDocs.length; i++) {
@@ -145,7 +156,7 @@ async function _checkAndAdvanceToNextRound(
     const existingNextRoundMatchData = matchToUpdateDoc.data().fields;
     if (existingNextRoundMatchData.team1?.stringValue !== team1Name || existingNextRoundMatchData.team2?.stringValue !== team2Name || existingNextRoundMatchData.team1?.stringValue === "TBD") {
         batch.update(matchToUpdateDoc.ref, {
-            "fields.team1": { stringValue: team1Name }, // Correctly update the map field
+            "fields.team1": { stringValue: team1Name }, 
             "fields.team2": { stringValue: team2Name },
             "fields.team1Wins": { integerValue: 0 }, 
             "fields.team2Wins": { integerValue: 0 },
@@ -159,7 +170,7 @@ async function _checkAndAdvanceToNextRound(
             matchToUpdateDoc.id,
             team1Name,
             team2Name,
-            nextRoundEffectiveStartDate, // Pass the calculated start date for this round's matches
+            nextRoundEffectiveStartDate, 
             batch,
             details
         );
@@ -167,14 +178,13 @@ async function _checkAndAdvanceToNextRound(
         details.push(`R${nextRoundNumStr} M${matchToUpdateDoc.id} already has correct teams: ${team1Name} vs ${team2Name}. Ensuring daily placeholders with correct dates.`);
          await _createDailyResultPlaceholdersForMatch(
             activeTournamentId, nextRoundNumStr, matchToUpdateDoc.id, team1Name, team2Name,
-            nextRoundEffectiveStartDate, batch, details // Ensure correct dates for existing placeholders
+            nextRoundEffectiveStartDate, batch, details 
         );
     }
   }
   details.push(`Successfully set up matches and daily placeholders for round ${nextRoundNumStr}.`);
 }
 
-// Initialize the bracket structure for a tournament
 async function _initializeTournamentBracketStructure(tournamentId: string, settings: TournamentSettings): Promise<void> {
   const { teamCount, numberOfRounds, startDate } = settings;
   const teams: string[] = Array.from({ length: teamCount }, (_, i) => `Team ${i + 1}`);
@@ -183,16 +193,18 @@ async function _initializeTournamentBracketStructure(tournamentId: string, setti
 
   for (let roundNum = 1; roundNum <= numberOfRounds; roundNum++) {
     const roundNumStr = String(roundNum);
-    const matchesInThisRoundIds: string[] = [];
     
     let numMatchesThisRound;
     if (roundNum === 1) {
       numMatchesThisRound = teamCount / 2;
     } else {
-      const previousRoundMatches = teamCount / Math.pow(2, roundNum - 1);
-      numMatchesThisRound = previousRoundMatches / 2;
-      if (numMatchesThisRound < 1 && numberOfRounds > 0 && previousRoundMatches === 1) numMatchesThisRound = 1; // Final match if previous round had 1 match (2 teams)
-      else if (numMatchesThisRound < 1) numMatchesThisRound = 0;
+      const teamsInPreviousRound = teamCount / Math.pow(2, roundNum - 2); // Teams that *entered* the previous round
+      numMatchesThisRound = teamsInPreviousRound / 2 / 2; // Matches = (winners of prev round) / 2
+      if (numMatchesThisRound < 1 && roundNum > 1) { // Check if it's a final with 2 teams making 1 match
+        const matchesInPrevRound = teamCount / Math.pow(2, roundNum - 1);
+        if (matchesInPrevRound === 1) numMatchesThisRound = 1; // If prev round had 1 match, this round (final) also has 1.
+        else numMatchesThisRound = 0;
+      }
     }
 
     if (numMatchesThisRound === 0 && roundNum <= numberOfRounds) { 
@@ -201,14 +213,14 @@ async function _initializeTournamentBracketStructure(tournamentId: string, setti
     }
 
     const currentRoundEffectiveStartDate = addDays(settings.startDate, (roundNum - 1) * 7);
-    initDetails.push(`Round ${roundNumStr} matches will be scheduled starting: ${formatDate(currentRoundEffectiveStartDate, 'yyyy-MM-dd')}`);
+    initDetails.push(`Round ${roundNumStr} matches will be scheduled starting week of: ${formatDate(currentRoundEffectiveStartDate, 'yyyy-MM-dd')}`);
 
     for (let i = 0; i < numMatchesThisRound; i++) {
       const matchId = `match${i + 1}`; 
       let team1Name: string = "TBD";
       let team2Name: string = "TBD";
 
-      if (roundNum === 1) { // Only auto-populate teams for the first round
+      if (roundNum === 1) { 
         if ((i*2 + 1) < teams.length) { 
             team1Name = teams[i * 2];
             team2Name = teams[i * 2 + 1];
@@ -229,20 +241,14 @@ async function _initializeTournamentBracketStructure(tournamentId: string, setti
         }
       };
       batch.set(matchDocRef, matchData);
-      matchesInThisRoundIds.push(matchId);
 
-      // For Round 1, create daily placeholders immediately with its effective start date
       if (roundNum === 1 && team1Name !== "TBD" && team2Name !== "TBD") {
         await _createDailyResultPlaceholdersForMatch(
           tournamentId, roundNumStr, matchId, team1Name, team2Name,
-          currentRoundEffectiveStartDate, // Use the calculated start date for this round
+          currentRoundEffectiveStartDate, 
           batch, initDetails
         );
       } else if (roundNum > 1) {
-        // For subsequent rounds, placeholders are created when teams are advanced into them by _checkAndAdvanceToNextRound
-        // However, we should still create empty dailyResults if match has TBD teams to ensure structure.
-        // No, this is not ideal. Placeholders for future rounds (TBD vs TBD) should only be created when teams are known.
-        // The _checkAndAdvanceToNextRound will handle placeholder creation for R2+
          initDetails.push(`Placeholder match R${roundNumStr} M${matchId} created (TBD vs TBD). Daily results will be added when teams are set.`);
       }
     }
@@ -267,15 +273,12 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
       numberOfRounds: settings.numberOfRounds,
       startDate: Timestamp.fromDate(settings.startDate),
       createdAt: Timestamp.now(),
-      status: "Scheduled", // Initial status
-      // overallWinnerName will be added later
+      status: "Scheduled", 
     };
     const docRef = await addDoc(collection(db, "tournaments"), tournamentDataToSave);
     console.log("Tournament settings created with ID: ", docRef.id);
     
-    // Pass the full settings object including the original startDate
     await _initializeTournamentBracketStructure(docRef.id, { ...settings, id: docRef.id, createdAt: new Date() });
-
 
     return { success: true, id: docRef.id };
   } catch (error) {
@@ -291,15 +294,15 @@ function normalizeDateString(dateStr: string | undefined): string | null {
   if (!dateStr) return null;
   try {
     let dateObj;
-    if (dateStr.includes('/')) {
+    if (dateStr.includes('/')) { // Handles MM/DD/YYYY or M/D/YY etc.
         const parts = dateStr.split('/');
         let year = parseInt(parts[2], 10);
         if (year < 100) year += 2000; 
         const month = parseInt(parts[0], 10) - 1; 
         const day = parseInt(parts[1], 10);
         dateObj = new Date(Date.UTC(year, month, day)); 
-    } else {
-        dateObj = new Date(dateStr + "T00:00:00Z"); 
+    } else { // Handles YYYY-MM-DD or other parsable formats by Date constructor
+        dateObj = new Date(dateStr + "T00:00:00Z"); // Assume UTC if no timezone, use T00:00:00Z for date-only
     }
 
     if (isNaN(dateObj.getTime())) { 
@@ -394,14 +397,13 @@ export async function syncSheetScoresToDailyResults(activeTournamentId: string):
           continue; 
       }
 
-      // Calculate the effective start date for matches in THIS specific round
       const currentRoundEffectiveStartDate = addDays(tournamentSettings.startDate, (roundNumInt - 1) * 7);
-      details.push(`Processing R${roundNumStr} matches. Effective start date for this round's daily results: ${formatDate(currentRoundEffectiveStartDate, 'yyyy-MM-dd')}`);
+      details.push(`Processing R${roundNumStr} matches. Effective start week for this round's daily results: ${formatDate(currentRoundEffectiveStartDate, 'yyyy-MM-dd')}`);
 
 
       for (const matchDoc of matchesSnapshot.docs) {
         const matchId = matchDoc.id;
-        const existingMatchFields = matchDoc.data().fields; // This is the map of typed values
+        const existingMatchFields = matchDoc.data().fields; 
         const originalAdvancedTeam = existingMatchFields.advanced?.stringValue || null;
 
         const team1Name = existingMatchFields.team1?.stringValue;
@@ -414,93 +416,112 @@ export async function syncSheetScoresToDailyResults(activeTournamentId: string):
         
         let calculatedTeam1DailyWins = 0;
         let calculatedTeam2DailyWins = 0;
+        let seriesWinnerForThisMatch: string | null = null; // Tracks if a winner is decided within the 5 days
 
-        for (let dayIndex = 0; dayIndex < 5; dayIndex++) { // Max 5 days for a match series
-          const currentDateForDailyResult = addDays(currentRoundEffectiveStartDate, dayIndex); // Use round-specific start date
-          const dateString = formatDate(currentDateForDailyResult, 'yyyy-MM-dd');
-          
-          const team1ScoreForDay = teamDailyScores.get(team1Name)?.get(dateString) || 0;
-          const team2ScoreForDay = teamDailyScores.get(team2Name)?.get(dateString) || 0;
+        let workingDaysProcessed = 0;
+        let calendarDayOffset = 0;
 
-          let dailyWinnerTeamName: string | null = null;
-          let dailyLoserTeamName: string | null = null;
-          let dailyStatus = "Scheduled";
+        while (workingDaysProcessed < 5) {
+          const currentDateForDailyResult = addDays(currentRoundEffectiveStartDate, calendarDayOffset);
+          const dayOfWeek = getDay(currentDateForDailyResult);
 
-          const dailyResultDocRef = doc(db, "tournaments", activeTournamentId, "rounds", roundNumStr, "matches", matchId, "dailyResults", dateString);
-          
-          const dailyDocSnap = await getDoc(dailyResultDocRef);
-          let dailyResultFieldsUpdate: any = {};
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Monday to Friday
+            const dateString = formatDate(currentDateForDailyResult, 'yyyy-MM-dd');
+            
+            const team1ScoreForDay = teamDailyScores.get(team1Name)?.get(dateString) || 0;
+            const team2ScoreForDay = teamDailyScores.get(team2Name)?.get(dateString) || 0;
 
-          if (team1ScoreForDay > team2ScoreForDay) {
-              dailyWinnerTeamName = team1Name;
-              dailyLoserTeamName = team2Name;
-              if (calculatedTeam1DailyWins < 3 && calculatedTeam2DailyWins < 3) calculatedTeam1DailyWins++; // only count if series not over
-              dailyStatus = "Completed";
-          } else if (team2ScoreForDay > team1ScoreForDay) {
-              dailyWinnerTeamName = team2Name;
-              dailyLoserTeamName = team1Name;
-              if (calculatedTeam1DailyWins < 3 && calculatedTeam2DailyWins < 3) calculatedTeam2DailyWins++; // only count if series not over
-              dailyStatus = "Completed";
-          } else {
-              const today = new Date(); today.setHours(0,0,0,0);
-              const currentMatchDateForComparison = parseISO(dateString); 
-              currentMatchDateForComparison.setHours(0,0,0,0); // Ensure comparison is date-only
-              if (team1ScoreForDay === 0 && team2ScoreForDay === 0 && isFuture(currentMatchDateForComparison) && !isEqual(currentMatchDateForComparison,today)) {
-                  dailyStatus = "Scheduled";
-              } else { 
-                  dailyStatus = "Completed - Tie";
-              }
+            let dailyWinnerTeamName: string | null = null;
+            let dailyLoserTeamName: string | null = null;
+            let dailyStatus = "Scheduled";
+
+            const dailyResultDocRef = doc(db, "tournaments", activeTournamentId, "rounds", roundNumStr, "matches", matchId, "dailyResults", dateString);
+            const dailyDocSnap = await getDoc(dailyResultDocRef);
+            let dailyResultFieldsUpdate: any = {};
+
+            if (!seriesWinnerForThisMatch) { // Only update daily wins if series isn't already decided by earlier days in this loop
+                if (team1ScoreForDay > team2ScoreForDay) {
+                    dailyWinnerTeamName = team1Name;
+                    dailyLoserTeamName = team2Name;
+                    calculatedTeam1DailyWins++;
+                    dailyStatus = "Completed";
+                } else if (team2ScoreForDay > team1ScoreForDay) {
+                    dailyWinnerTeamName = team2Name;
+                    dailyLoserTeamName = team1Name;
+                    calculatedTeam2DailyWins++;
+                    dailyStatus = "Completed";
+                } else { // Tie or no scores yet for the day
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const currentMatchDateForComparison = parseISO(dateString); 
+                    currentMatchDateForComparison.setHours(0,0,0,0); 
+                    if (team1ScoreForDay === 0 && team2ScoreForDay === 0 && (isFuture(currentMatchDateForComparison) || isEqual(currentMatchDateForComparison,today)) ) { // Only scheduled if today or future AND no scores
+                        dailyStatus = "Scheduled";
+                    } else { 
+                        dailyStatus = "Completed - Tie";
+                    }
+                }
+            } else { // Series already decided earlier in this 5-day processing, just record scores
+                 if (team1ScoreForDay > team2ScoreForDay) { dailyWinnerTeamName = team1Name; dailyLoserTeamName = team2Name; dailyStatus = "Completed"; }
+                 else if (team2ScoreForDay > team1ScoreForDay) { dailyWinnerTeamName = team2Name; dailyLoserTeamName = team1Name; dailyStatus = "Completed"; }
+                 else { dailyStatus = "Completed - Tie"; } // Or could be "Played - No Impact on Series"
+            }
+            
+            dailyResultFieldsUpdate['team1Score'] = { integerValue: team1ScoreForDay };
+            dailyResultFieldsUpdate['team2Score'] = { integerValue: team2ScoreForDay };
+            dailyResultFieldsUpdate['winner'] = dailyWinnerTeamName ? { stringValue: dailyWinnerTeamName } : { nullValue: null };
+            dailyResultFieldsUpdate['loser'] = dailyLoserTeamName ? { stringValue: dailyLoserTeamName } : { nullValue: null };
+            dailyResultFieldsUpdate['status'] = { stringValue: dailyStatus };
+
+            // Ensure team names in daily result, helpful if doc didn't exist
+            dailyResultFieldsUpdate['team1'] = { stringValue: team1Name };
+            dailyResultFieldsUpdate['team2'] = { stringValue: team2Name };
+
+            if (!dailyDocSnap.exists()) {
+               details.push(`Daily result doc for R${roundNumStr} M${matchId} on ${dateString} does not exist. Creating it with scores.`);
+               batch.set(dailyResultDocRef, { fields: dailyResultFieldsUpdate });
+            } else {
+               batch.update(dailyResultDocRef, { fields: dailyResultFieldsUpdate });
+            }
+            updatesMadeCount++;
+            details.push(`DailyResult (R${roundNumStr}M${matchId} D:${dateString}): ${team1Name}(${team1ScoreForDay}) vs ${team2Name}(${team2ScoreForDay}). Winner: ${dailyWinnerTeamName || 'None'}. Status: ${dailyStatus}. AggWins: ${team1Name}-${calculatedTeam1DailyWins}, ${team2Name}-${calculatedTeam2DailyWins}`);
+            
+            if (!seriesWinnerForThisMatch && (calculatedTeam1DailyWins >= 3 || calculatedTeam2DailyWins >= 3)) {
+                seriesWinnerForThisMatch = calculatedTeam1DailyWins >= 3 ? team1Name : team2Name;
+                details.push(`Series for R${roundNumStr}M${matchId} concluded on ${dateString}. Winner: ${seriesWinnerForThisMatch}`);
+            }
+            workingDaysProcessed++;
           }
-          
-          dailyResultFieldsUpdate['team1Score'] = { integerValue: team1ScoreForDay };
-          dailyResultFieldsUpdate['team2Score'] = { integerValue: team2ScoreForDay };
-          dailyResultFieldsUpdate['winner'] = dailyWinnerTeamName ? { stringValue: dailyWinnerTeamName } : { nullValue: null };
-          dailyResultFieldsUpdate['loser'] = dailyLoserTeamName ? { stringValue: dailyLoserTeamName } : { nullValue: null };
-          dailyResultFieldsUpdate['status'] = { stringValue: dailyStatus };
-
-          if (!dailyDocSnap.exists()) {
-             details.push(`Daily result doc for R${roundNumStr} M${matchId} on ${dateString} does not exist. Creating it with scores.`);
-             // Also ensure team names are present if creating fresh
-             dailyResultFieldsUpdate['team1'] = { stringValue: team1Name };
-             dailyResultFieldsUpdate['team2'] = { stringValue: team2Name };
-             batch.set(dailyResultDocRef, { fields: dailyResultFieldsUpdate });
-          } else {
-             batch.update(dailyResultDocRef, { fields: dailyResultFieldsUpdate });
+          calendarDayOffset++;
+          if (calendarDayOffset > 20 && workingDaysProcessed < 5) { // Safety break
+              details.push(`Warning: Could not find/process 5 working days within a reasonable offset for score sync of R${roundNumStr}M${matchId}. Processed ${workingDaysProcessed} days.`);
+              break;
           }
-          updatesMadeCount++;
-          details.push(`DailyResult (R${roundNumStr}M${matchId} D:${dateString}): ${team1Name}(${team1ScoreForDay}) vs ${team2Name}(${team2ScoreForDay}). Winner: ${dailyWinnerTeamName || 'None'}. Status: ${dailyStatus}.`);
         } 
-
-        let newSeriesWinner: string | null = null;
-        if (calculatedTeam1DailyWins >= 3) newSeriesWinner = team1Name;
-        else if (calculatedTeam2DailyWins >= 3) newSeriesWinner = team2Name;
 
         const parentMatchDocRef = doc(db, "tournaments", activeTournamentId, "rounds", roundNumStr, "matches", matchId);
         const matchUpdatePayload: any = {
             "fields.team1Wins": { integerValue: calculatedTeam1DailyWins },
             "fields.team2Wins": { integerValue: calculatedTeam2DailyWins },
         };
-        if (newSeriesWinner) {
-            matchUpdatePayload["fields.advanced"] = { stringValue: newSeriesWinner };
+        if (seriesWinnerForThisMatch) {
+            matchUpdatePayload["fields.advanced"] = { stringValue: seriesWinnerForThisMatch };
         } else {
-            // If no winner yet, ensure 'advanced' is null, especially if it might have been set before and scores changed
             matchUpdatePayload["fields.advanced"] = { nullValue: null };
         }
         batch.update(parentMatchDocRef, matchUpdatePayload);
         updatesMadeCount++;
-        details.push(`ParentMatch (R${roundNumStr} M${matchId}): ${team1Name} CalcDailyWins: ${calculatedTeam1DailyWins}, ${team2Name} CalcDailyWins: ${calculatedTeam2DailyWins}, New Series Winner: ${newSeriesWinner || 'None'}`);
+        details.push(`ParentMatch (R${roundNumStr} M${matchId}): ${team1Name} AggDailyWins: ${calculatedTeam1DailyWins}, ${team2Name} AggDailyWins: ${calculatedTeam2DailyWins}, Series Winner: ${seriesWinnerForThisMatch || 'None'}`);
 
-        if (newSeriesWinner && newSeriesWinner !== originalAdvancedTeam) {
-            details.push(`Series winner for R${roundNumStr} M${matchId} changed/set to ${newSeriesWinner}. Marking round for advancement check.`);
+        if (seriesWinnerForThisMatch && seriesWinnerForThisMatch !== originalAdvancedTeam) {
+            details.push(`Series winner for R${roundNumStr} M${matchId} changed/set to ${seriesWinnerForThisMatch}. Marking round for advancement check.`);
             roundsPotentiallyCompletedThisSync.add(roundNumInt);
-        } else if (!newSeriesWinner && originalAdvancedTeam) {
+        } else if (!seriesWinnerForThisMatch && originalAdvancedTeam) {
             details.push(`Series winner for R${roundNumStr} M${matchId} removed (was ${originalAdvancedTeam}). Marking round for advancement check.`);
             roundsPotentiallyCompletedThisSync.add(roundNumInt);
-        } else if (newSeriesWinner && newSeriesWinner === originalAdvancedTeam) {
-             roundsPotentiallyCompletedThisSync.add(roundNumInt);
-        } else if (!newSeriesWinner && !originalAdvancedTeam) {
-            // No winner before, no winner now, but if all other matches in round completed, this round might still need check
-            roundsPotentiallyCompletedThisSync.add(roundNumInt);
+        } else if (seriesWinnerForThisMatch && seriesWinnerForThisMatch === originalAdvancedTeam) {
+             roundsPotentiallyCompletedThisSync.add(roundNumInt); // Still potentially completed
+        } else if (!seriesWinnerForThisMatch && !originalAdvancedTeam) {
+            roundsPotentiallyCompletedThisSync.add(roundNumInt); // Still potentially completed
         }
       } 
     } 
@@ -514,10 +535,10 @@ export async function syncSheetScoresToDailyResults(activeTournamentId: string):
     if (updatesMadeCount > 0) {
       await batch.commit();
       details.push(`Batch commit successful. ${updatesMadeCount} Firestore operations performed for tournament "${tournamentSettings.name}".`);
-      return { success: true, message: `Sync complete for "${tournamentSettings.name}". Daily scores, winners/losers, match wins, series winners, and round advancements (if any) processed. ${updatesMadeCount} operations.`, details };
+      return { success: true, message: `Sync complete for "${tournamentSettings.name}". Daily scores, daily winners/losers, overall match daily win counts, and series winners processed and updated. Any completed rounds have been advanced. ${updatesMadeCount} operations.`, details };
     } else {
       details.push(`No score updates or match outcome changes were necessary for "${tournamentSettings.name}" based on current Sheet1Rows data.`);
-      return { success: true, message: `Sync complete for "${tournamentSettings.name}". No data changes needed.`, details };
+      return { success: true, message: `Sync complete for "${tournamentSettings.name}". No data changes needed. Check logs for details.`, details };
     }
 
   } catch (error) {
@@ -527,5 +548,3 @@ export async function syncSheetScoresToDailyResults(activeTournamentId: string):
     return { success: false, message: `Failed to sync scores for tournament "${activeTournamentId}": ${errorMessage}`, details };
   }
 }
-
-    
