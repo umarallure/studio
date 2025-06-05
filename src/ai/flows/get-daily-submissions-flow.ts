@@ -11,9 +11,10 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, type DocumentData } from 'firebase/firestore';
-import { mapDocToSheetRow } from '@/lib/tournament-config';
-import type { SheetRow } from '@/lib/types';
+import { collection, query, where, getDocs, type QueryConstraint } from 'firebase/firestore';
+// mapDocToSheetRow and SheetRow are not strictly needed if we only count via query.size
+// import { mapDocToSheetRow } from '@/lib/tournament-config';
+// import type { SheetRow } from '@/lib/types';
 import { format as formatDate } from 'date-fns';
 
 const DailySubmissionsInputSchema = z.object({
@@ -31,7 +32,10 @@ export type DailySubmissionsOutput = z.infer<typeof DailySubmissionsOutputSchema
 
 
 export async function getDailySubmissions(input: DailySubmissionsInput): Promise<DailySubmissionsOutput> {
-  return getDailySubmissionsFlow(input);
+  console.log('[Genkit Flow] getDailySubmissions called with input:', input);
+  const result = await getDailySubmissionsFlow(input);
+  console.log('[Genkit Flow] getDailySubmissions result:', result);
+  return result;
 }
 
 // This flow does not use an LLM prompt, it directly queries Firestore.
@@ -44,39 +48,28 @@ const getDailySubmissionsFlow = ai.defineFlow(
   async (input: DailySubmissionsInput) => {
     let submissionCount = 0;
     const { targetDate, leadVenderFilter } = input;
+    console.log(`[Genkit Flow Internal] Processing for date: ${targetDate}, filter: ${leadVenderFilter || 'None'}`);
 
     try {
       const sheetRowsCollectionRef = collection(db, "Sheet1Rows");
       
-      // Firestore queries can be complex with multiple conditions.
-      // We'll fetch based on date first if possible, or fetch all and filter locally if date filtering isn't direct on string.
-      // For simplicity, we'll fetch all and filter in code. For large datasets, optimize Firestore query.
+      const queryConstraints: QueryConstraint[] = [
+        where("Date", "==", targetDate), // Assumes 'Date' field in Firestore is a 'YYYY-MM-DD' string
+        where("Status", "==", "Submitted") // Assumes 'Status' field is a string
+      ];
+
+      if (leadVenderFilter) {
+        queryConstraints.push(where("LeadVender", "==", leadVenderFilter)); // Assumes 'LeadVender' field is a string
+      }
       
-      const q = query(sheetRowsCollectionRef); // Potentially add where clauses if fields are indexed & suitable for direct query
+      const q = query(sheetRowsCollectionRef, ...queryConstraints);
+      console.log(`[Genkit Flow Internal] Executing Firestore query for date: ${targetDate}, filter: ${leadVenderFilter || 'None'}.`);
+      
       const querySnapshot = await getDocs(q);
+      submissionCount = querySnapshot.size;
       
-      querySnapshot.forEach((doc) => {
-        const rowData = mapDocToSheetRow(doc.id, doc.data() as DocumentData);
-        if (rowData) {
-          const rowDateStr = rowData.Date; // Assuming this is already normalized by Apps Script or mapDocToSheetRow
-          
-          let match = true;
-          if (rowDateStr !== targetDate) {
-            match = false;
-          }
-          if (leadVenderFilter && rowData.LeadVender !== leadVenderFilter) {
-            match = false;
-          }
-          if (rowData.Status !== "Submitted") {
-            match = false;
-          }
-
-          if (match) {
-            submissionCount++;
-          }
-        }
-      });
-
+      console.log(`[Genkit Flow Internal] Query returned ${submissionCount} documents for date: ${targetDate}, filter: ${leadVenderFilter || 'None'}.`);
+      
       return {
         submissionCount,
         processedDate: targetDate,
@@ -84,7 +77,7 @@ const getDailySubmissionsFlow = ai.defineFlow(
       };
 
     } catch (error) {
-      console.error("Error in getDailySubmissionsFlow:", error);
+      console.error("[Genkit Flow Internal] Error in getDailySubmissionsFlow:", error);
       // For a production app, you might want to throw a more specific error or return a default error structure.
       // For now, we'll return 0 count on error to prevent dashboard crash.
       return {
@@ -97,3 +90,4 @@ const getDailySubmissionsFlow = ai.defineFlow(
     }
   }
 );
+
