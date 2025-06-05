@@ -33,6 +33,8 @@ export interface TournamentData {
   startDate: Date; // Keep as Date object for UI, convert to Timestamp for Firestore
   rounds: Round[]; // The actual bracket rounds and matches
   prize: string; // Can remain static or be fetched if stored separately
+  overallWinnerName?: string; // For displaying the final winner
+  status?: string; // e.g., "Scheduled", "Ongoing", "Completed"
 }
 
 
@@ -77,4 +79,7 @@ export interface TournamentSettings {
   startDate: Date; // Keep as Date for form, convert to/from Timestamp for Firestore
   numberOfRounds: number;
   createdAt?: Date; // Firestore Timestamp, converted to Date
+  overallWinnerName?: string;
+  status?: string; // e.g., "Scheduled", "Ongoing", "Completed"
 }
+

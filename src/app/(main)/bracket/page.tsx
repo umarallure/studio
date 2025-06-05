@@ -6,9 +6,10 @@ import BracketDisplay from '@/components/bracket/BracketDisplay';
 import { mapFirestoreDocToMatchup, mapDocToTournamentSettings } from '@/lib/tournament-config';
 import type { TournamentData, Round, Matchup as MatchupType, TournamentSettings } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Trophy, Loader2, AlertTriangle, Info, CheckCircle } from 'lucide-react';
+import { RefreshCw, Trophy, Loader2, AlertTriangle, Info, CheckCircle, Award } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, doc } from 'firebase/firestore';
 import { tournamentPrize } from '@/lib/mock-data'; // Static prize for now
@@ -81,20 +82,13 @@ export default function BracketPage() {
 
   // Effect to fetch bracket data for the active tournament
   useEffect(() => {
-    // Guard: If no valid active tournament, do nothing. isLoading should have been handled by the first useEffect.
     if (!activeTournament || !activeTournament.id || typeof activeTournament.numberOfRounds !== 'number' || activeTournament.numberOfRounds < 0) {
-       // If activeTournament is null or invalid, the first useEffect is responsible for setting isLoading to false.
-       // If by some chance isLoading is still true here with an invalid/null activeTournament, ensure it's false.
        if (isLoading && !criticalError) {
-           // This state should ideally not be reached if the first effect handles its errors/empty states correctly.
-           // As a safeguard, ensure loading stops if we enter here without a valid tournament and no critical error already set.
-           // However, if criticalError IS set, we want to display that, not overwrite isLoading.
-           // setIsLoading(false);
+           // setIsLoading(false); // Handled by first effect
        }
       return;
     }
     
-    // Edge case: Tournament with 0 rounds. Valid but no bracket to display.
     if (activeTournament.numberOfRounds === 0) {
         setTournamentDisplayData({ 
             id: activeTournament.id,
@@ -102,17 +96,18 @@ export default function BracketPage() {
             teamCount: activeTournament.teamCount,
             numberOfRounds: activeTournament.numberOfRounds,
             startDate: activeTournament.startDate,
+            overallWinnerName: activeTournament.overallWinnerName,
+            status: activeTournament.status,
             rounds: [], 
             prize: tournamentPrize 
         });
-        setIsLoading(false); // No rounds to fetch, stop loading.
+        setIsLoading(false); 
         return;
     }
 
-    // Start loading bracket data for the valid active tournament
     setIsLoading(true); 
-    setCriticalError(null); // Clear previous bracket-specific errors
-    setTournamentDisplayData(null); // Clear any old display data
+    setCriticalError(null); 
+    setTournamentDisplayData(null); 
 
     const unsubscribes: (() => void)[] = [];
     let roundsDataCollector: { [roundId: string]: MatchupType[] } = {};
@@ -123,11 +118,7 @@ export default function BracketPage() {
     const checkAllListenersProcessed = () => {
       listenersAttachedOrFailed++;
       if (listenersAttachedOrFailed >= totalListenersExpected) {
-        setIsLoading(false); // All listeners attached or failed for this tournament, stop loading.
-        if (Object.keys(roundsDataCollector).length === 0 && !criticalError && totalListenersExpected > 0) {
-          // This implies rounds might not exist or are empty for the active tournament.
-          // No critical error, but data might be missing. This state is handled by the "noDataExists" check later.
-        }
+        setIsLoading(false); 
       }
     };
 
@@ -161,19 +152,19 @@ export default function BracketPage() {
           }))
           .sort((a, b) => parseInt(a.id) - parseInt(b.id));
         
-        if (activeTournament) { // Check activeTournament again in case it became null during async ops (unlikely here)
+        if (activeTournament) { 
             setTournamentDisplayData({ 
                 id: activeTournament.id,
                 name: activeTournament.name,
                 teamCount: activeTournament.teamCount,
                 numberOfRounds: activeTournament.numberOfRounds,
                 startDate: activeTournament.startDate,
+                overallWinnerName: activeTournament.overallWinnerName,
+                status: activeTournament.status,
                 rounds: newRounds, 
                 prize: tournamentPrize 
             });
         }
-        // Don't set criticalError to null here unconditionally, an error might have occurred for another round
-        // setCriticalError(null); // Removed: Handled at start of effect
         checkAllListenersProcessed();
 
       }, (error) => {
@@ -184,16 +175,15 @@ export default function BracketPage() {
           variant: "destructive",
         });
         setCriticalError(prev => prev || `Failed to load data for Round ${roundId} of tournament ${activeTournament.name}. Check Firestore access and data structure.`);
-        checkAllListenersProcessed(); // Also call this on error to count towards completion
+        checkAllListenersProcessed(); 
       });
       unsubscribes.push(unsubscribeRound);
     }
 
     const loadingTimeout = setTimeout(() => {
-        if (isLoading) { // Only if still loading after timeout (i.e., listeners didn't complete/error out)
-            setIsLoading(false); // Force stop loading
+        if (isLoading) { 
+            setIsLoading(false); 
             if (!criticalError && Object.keys(roundsDataCollector).length === 0 && activeTournament) {
-                // Timeout occurred, no data collected, and no other critical error reported yet
                 setCriticalError(`Loading tournament data for "${activeTournament.name}" timed out. Ensure match documents under "tournaments/${activeTournament.id}/rounds/[roundNum]/matches/" are populated.`);
                 toast({
                     title: "Loading Timeout",
@@ -201,7 +191,6 @@ export default function BracketPage() {
                     variant: "warning",
                 });
             } else if (!criticalError && activeTournament) {
-                // Timeout, but some data might have been collected or other non-critical issues.
                 toast({
                     title: "Partial Data Loaded or Timeout",
                     description: `Not all rounds for "${activeTournament.name}" responded in time, or loading took too long. Display may be incomplete.`,
@@ -209,13 +198,13 @@ export default function BracketPage() {
                 });
             }
         }
-    }, 15000); // 15 seconds timeout for bracket data
+    }, 15000); 
 
     return () => {
       unsubscribes.forEach(unsub => unsub());
       clearTimeout(loadingTimeout);
     };
-  }, [activeTournament, toast]); // Dependencies are activeTournament (to trigger fetch) and toast (for error reporting)
+  }, [activeTournament, toast]); 
 
   const confirmLiveUpdates = () => {
     toast({
@@ -259,9 +248,9 @@ export default function BracketPage() {
     );
   }
   
-  const noDataExists = !criticalError && (!tournamentDisplayData || tournamentDisplayData.rounds.length === 0 || tournamentDisplayData.rounds.every(r => r.matchups.length === 0));
+  const noDataExists = !criticalError && (!tournamentDisplayData || (tournamentDisplayData.numberOfRounds > 0 && (tournamentDisplayData.rounds.length === 0 || tournamentDisplayData.rounds.every(r => r.matchups.length === 0)) ) );
 
-  if (noDataExists) {
+  if (noDataExists && activeTournament && activeTournament.status !== "Completed") {
      return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
         <Info className="h-16 w-16 text-primary" />
@@ -288,6 +277,21 @@ export default function BracketPage() {
           Live Updates Active
         </Button>
       </div>
+
+      {tournamentDisplayData?.status === "Completed" && tournamentDisplayData.overallWinnerName && (
+        <Card className="bg-gradient-to-r from-accent/80 to-primary/80 text-primary-foreground shadow-2xl border-accent">
+          <CardHeader className="text-center">
+            <Award className="h-16 w-16 mx-auto text-amber-300 drop-shadow-lg" />
+            <CardTitle className="font-headline text-4xl mt-2">Tournament Winner!</CardTitle>
+            <CardDescription className="text-primary-foreground/90 text-lg">Congratulations to</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center pb-6">
+            <p className="font-headline text-5xl font-bold text-white drop-shadow-md">
+              {tournamentDisplayData.overallWinnerName}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {tournamentDisplayData?.prize && (
         <Alert className="border-accent bg-accent/5 text-accent-foreground">

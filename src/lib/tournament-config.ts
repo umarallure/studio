@@ -26,13 +26,14 @@ export function mapDocToTournamentSettings(docData: DocumentData | undefined, id
   // Helper to safely convert to Date
   const safeConvertToDate = (dateInput: any): Date => {
     if (!dateInput) return new Date(); // Default if undefined/null
-    if (dateInput.toDate && typeof dateInput.toDate === 'function') { // Firestore Timestamp
+    if (dateInput && typeof dateInput.toDate === 'function') { // Firestore Timestamp
       return dateInput.toDate();
     }
-    // Attempt to parse if it's a string or number
-    const d = new Date(dateInput);
-    if (!isNaN(d.getTime())) {
-      return d;
+    if (typeof dateInput === 'string' || typeof dateInput === 'number') {
+        const d = new Date(dateInput);
+        if (!isNaN(d.getTime())) {
+          return d;
+        }
     }
     return new Date(); // Fallback for unparseable dates
   };
@@ -44,6 +45,8 @@ export function mapDocToTournamentSettings(docData: DocumentData | undefined, id
     numberOfRounds: docData.numberOfRounds || 3,
     startDate: safeConvertToDate(docData.startDate),
     createdAt: safeConvertToDate(docData.createdAt),
+    overallWinnerName: docData.overallWinnerName || undefined,
+    status: docData.status || "Scheduled",
   };
 }
 
@@ -66,7 +69,7 @@ export function mapDocToSheetRow(docId: string, data: DocumentData | undefined):
     };
   }
   // Fallback for direct SDK-like data structure (no 'fields' wrapper)
-  else if (data && typeof data === 'object' && 'Agent' in data) { // check for a known property
+  else if (data && typeof data === 'object' && !data.fields && 'Agent' in data) { // check for a known property and no 'fields'
     return {
         id: docId,
         Agent: data.Agent,
@@ -81,3 +84,4 @@ export function mapDocToSheetRow(docId: string, data: DocumentData | undefined):
   }
   return null; // If data is undefined or not in a known format
 }
+
