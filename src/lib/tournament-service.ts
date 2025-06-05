@@ -4,23 +4,8 @@
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, Timestamp, writeBatch, query, orderBy, limit, getDocs, type DocumentData } from 'firebase/firestore';
 import type { TournamentSettings, SheetRow } from '@/lib/types';
-import { format as formatDate, addDays, parseISO } from 'date-fns';
-
-// Helper to map Firestore document data to SheetRow type
-function mapDocToSheetRow(docId: string, data: DocumentData | undefined): SheetRow | null {
-  if (!data) return null;
-  return {
-    id: docId,
-    Agent: data.Agent,
-    Date: data.Date, // Assuming this is a string like 'MM/DD/YYYY' or 'YYYY-MM-DD'
-    FromCallback: data['From Callback?'],
-    INSURED_NAME: data['INSURED NAME'],
-    LeadVender: data['Lead Vender'], // This will be used as the team identifier
-    Notes: data.Notes,
-    ProductType: data['Product Type'],
-    Status: data.Status,
-  };
-}
+import { format as formatDate, addDays, parseISO, isFuture, isEqual } from 'date-fns';
+import { mapDocToSheetRow } from '@/lib/tournament-config';
 
 
 // Helper function to generate and save the bracket structure under a specific tournament
@@ -62,15 +47,15 @@ async function _initializeTournamentBracketStructure(tournamentId: string, setti
       // Create 5 daily placeholder entries for this match if teams are known (primarily Round 1)
       if (team1Name !== "TBD" && team2Name !== "TBD") {
         for (let dayIndex = 0; dayIndex < 5; dayIndex++) {
-          const matchDate = addDays(startDate, dayIndex);
+          const matchDate = addDays(settings.startDate, dayIndex); // Use settings.startDate for consistency
           const dateString = formatDate(matchDate, 'yyyy-MM-dd');
           const dailyResultDocRef = doc(db, "tournaments", tournamentId, "rounds", String(roundNum), 'matches', matchId, 'dailyResults', dateString);
           const dailyResultData = {
             fields: {
               team1: { stringValue: team1Name },
               team2: { stringValue: team2Name },
-              team1Score: { integerValue: 0 }, // Daily score placeholder
-              team2Score: { integerValue: 0 }, // Daily score placeholder
+              team1Score: { integerValue: 0 }, 
+              team2Score: { integerValue: 0 }, 
               winner: { nullValue: null },
               loser: { nullValue: null },
               status: { stringValue: "Scheduled" }
@@ -81,7 +66,9 @@ async function _initializeTournamentBracketStructure(tournamentId: string, setti
       }
     }
     matchesInPreviousRoundIds = [...matchesInThisRound];
-    if (numMatchesThisRound === 1 && roundNum > 1 && matchesInThisRound.length === 1) break;
+    // Ensure loop termination for tournaments that might not perfectly halve (e.g. 3 teams if allowed by logic)
+    // For standard 2^n team counts, this condition is fine.
+    if (numMatchesThisRound === 1 && roundNum >= numberOfRounds ) break; 
   }
 
   try {
@@ -106,6 +93,7 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
     const docRef = await addDoc(collection(db, "tournaments"), tournamentDataToSave);
     console.log("Tournament settings created with ID: ", docRef.id, " Data: ", tournamentDataToSave);
     
+    // Pass the full settings object, which includes the JS Date version of startDate
     await _initializeTournamentBracketStructure(docRef.id, settings);
 
     return { success: true, id: docRef.id };
@@ -122,15 +110,13 @@ export async function createTournament(settings: TournamentSettings): Promise<{s
 function normalizeDateString(dateStr: string | undefined): string | null {
   if (!dateStr) return null;
   try {
-    // Attempt to parse common formats like MM/DD/YYYY, YYYY-MM-DD, or ISO strings
     const dateObj = new Date(dateStr);
-    if (isNaN(dateObj.getTime())) { // Invalid date
-      // Handle MM/DD/YY or M/D/YY specifically if needed, as new Date() might misinterpret
+    if (isNaN(dateObj.getTime())) { 
       const parts = dateStr.split('/');
       if (parts.length === 3) {
         let year = parseInt(parts[2], 10);
-        if (year < 100) year += 2000; // Convert YY to YYYY
-        const month = parseInt(parts[0], 10) -1; // Month is 0-indexed
+        if (year < 100) year += 2000; 
+        const month = parseInt(parts[0], 10) -1; 
         const day = parseInt(parts[1], 10);
         const d = new Date(year, month, day);
         if (!isNaN(d.getTime())) return formatDate(d, 'yyyy-MM-dd');
@@ -149,19 +135,20 @@ export async function syncSheetScoresToDailyResults(activeTournamentId: string):
   try {
     details.push(`Starting sync for tournament ID: ${activeTournamentId}`);
 
-    // 1. Fetch active tournament settings to get its start date
     const tournamentDocRef = doc(db, "tournaments", activeTournamentId);
     const tournamentDocSnap = await getDoc(tournamentDocRef);
     if (!tournamentDocSnap.exists()) {
-      return { success: false, message: `Tournament with ID ${activeTournamentId} not found.` };
+      return { success: false, message: `Tournament with ID ${activeTournamentId} not found.`, details };
     }
-    const tournamentSettings = tournamentDocSnap.data() as TournamentSettings;
-    // Firestore Timestamps need to be converted to JS Dates
-    const tournamentStartDate = tournamentSettings.startDate instanceof Timestamp ? tournamentSettings.startDate.toDate() : new Date(tournamentSettings.startDate);
+    const tournamentSettingsFromDb = tournamentDocSnap.data();
+    const tournamentStartDate = tournamentSettingsFromDb.startDate instanceof Timestamp 
+        ? tournamentSettingsFromDb.startDate.toDate() 
+        : new Date(tournamentSettingsFromDb.startDate);
+    const tournamentName = tournamentSettingsFromDb.name || "Unnamed Tournament";
+    const numberOfRounds = tournamentSettingsFromDb.numberOfRounds || 0;
 
-    details.push(`Tournament "${tournamentSettings.name}" found, starts on ${formatDate(tournamentStartDate, 'yyyy-MM-dd')}.`);
+    details.push(`Tournament "${tournamentName}" found, starts on ${formatDate(tournamentStartDate, 'yyyy-MM-dd')}. Number of rounds: ${numberOfRounds}`);
 
-    // 2. Fetch all Sheet1Rows
     const sheetRowsCollectionRef = collection(db, "Sheet1Rows");
     const sheetRowsSnapshot = await getDocs(sheetRowsCollectionRef);
     const sheetRows: SheetRow[] = [];
@@ -170,12 +157,11 @@ export async function syncSheetScoresToDailyResults(activeTournamentId: string):
       if (row) sheetRows.push(row);
     });
     details.push(`Fetched ${sheetRows.length} rows from Sheet1Rows.`);
-    if (sheetRows.length === 0) {
+    if (sheetRows.length === 0 && numberOfRounds > 0) { // Only return if rounds exist, otherwise sync means nothing
         return { success: true, message: "Sync complete. No rows found in Sheet1Rows to process.", details };
     }
 
-    // 3. Aggregate scores from Sheet1Rows
-    // Key: teamName (LeadVender), Value: Map<dateString (yyyy-MM-dd), score (count)>
+
     const teamDailyScores = new Map<string, Map<string, number>>();
     sheetRows.forEach(row => {
       if (row.LeadVender && row.Date && row.Status === "Submitted") {
@@ -195,18 +181,17 @@ export async function syncSheetScoresToDailyResults(activeTournamentId: string):
     });
     details.push(`Aggregated scores for ${teamDailyScores.size} teams from Sheet1Rows.`);
 
-    // 4. Iterate through tournament structure and update dailyResults
     const batch = writeBatch(db);
-    let updatesMade = 0;
+    let updatesMadeCount = 0; // To track if any actual Firestore writes are prepared
 
-    for (let roundNum = 1; roundNum <= tournamentSettings.numberOfRounds; roundNum++) {
+    for (let roundNum = 1; roundNum <= numberOfRounds; roundNum++) {
       const matchesCollectionRef = collection(db, "tournaments", activeTournamentId, "rounds", String(roundNum), "matches");
       const matchesSnapshot = await getDocs(matchesCollectionRef);
 
       for (const matchDoc of matchesSnapshot.docs) {
-        const matchData = matchDoc.data().fields;
-        const team1Name = matchData.team1?.stringValue;
-        const team2Name = matchData.team2?.stringValue;
+        const existingMatchData = matchDoc.data().fields;
+        const team1Name = existingMatchData.team1?.stringValue;
+        const team2Name = existingMatchData.team2?.stringValue;
         const matchId = matchDoc.id;
 
         if (!team1Name || team1Name === "TBD" || !team2Name || team2Name === "TBD") {
@@ -214,49 +199,92 @@ export async function syncSheetScoresToDailyResults(activeTournamentId: string):
           continue;
         }
         
-        // Iterate for 5 days from tournament start (or as many dailyResults docs exist)
+        let matchTeam1AggregateDailyWins = 0;
+        let matchTeam2AggregateDailyWins = 0;
+        let seriesWinnerForThisMatch: string | null = existingMatchData.advanced?.stringValue || null;
+        let seriesConcludedForThisMatch = !!seriesWinnerForThisMatch;
+
+        // If series already concluded, we still update daily scores but don't re-calculate daily wins count for series
+        if (seriesConcludedForThisMatch) {
+            matchTeam1AggregateDailyWins = existingMatchData.team1Wins?.integerValue || 0;
+            matchTeam2AggregateDailyWins = existingMatchData.team2Wins?.integerValue || 0;
+            details.push(`Match ${matchId} (Round ${roundNum}) series already concluded. Winner: ${seriesWinnerForThisMatch}. Daily scores will be updated, but series win counts will not change unless logic dictates a full recalculation based on new scores.`);
+        }
+
+
         for (let dayIndex = 0; dayIndex < 5; dayIndex++) {
           const currentDate = addDays(tournamentStartDate, dayIndex);
           const dateString = formatDate(currentDate, 'yyyy-MM-dd');
           
-          const team1Score = teamDailyScores.get(team1Name)?.get(dateString) || 0;
-          const team2Score = teamDailyScores.get(team2Name)?.get(dateString) || 0;
+          const team1ScoreForDay = teamDailyScores.get(team1Name)?.get(dateString) || 0;
+          const team2ScoreForDay = teamDailyScores.get(team2Name)?.get(dateString) || 0;
 
+          let dailyWinnerTeamName: string | null = null;
+          let dailyLoserTeamName: string | null = null;
+          let dailyStatus = "Scheduled"; // Default
+
+          if (team1ScoreForDay > team2ScoreForDay) {
+              dailyWinnerTeamName = team1Name;
+              dailyLoserTeamName = team2Name;
+              if (!seriesConcludedForThisMatch) matchTeam1AggregateDailyWins++;
+              dailyStatus = "Completed";
+          } else if (team2ScoreForDay > team1ScoreForDay) {
+              dailyWinnerTeamName = team2Name;
+              dailyLoserTeamName = team1Name;
+              if (!seriesConcludedForThisMatch) matchTeam2AggregateDailyWins++;
+              dailyStatus = "Completed";
+          } else { // Tie or no scores yet
+              // If scores exist (not both zero) or it's a past/current date, it's a completed tie
+              // If scores are both zero AND it's a future date, it's still "Scheduled"
+              const today = new Date();
+              today.setHours(0,0,0,0); // Normalize today for date comparison
+              const currentMatchDate = new Date(dateString + "T00:00:00"); // Ensure it's parsed as local midnight
+
+              if (team1ScoreForDay === 0 && team2ScoreForDay === 0 && isFuture(currentMatchDate)) {
+                  dailyStatus = "Scheduled";
+              } else if (team1ScoreForDay !== 0 || team2ScoreForDay !== 0 || isEqual(currentMatchDate, today) || currentMatchDate < today) {
+                  dailyStatus = "Completed - Tie";
+              }
+          }
+          
           const dailyResultDocRef = doc(db, "tournaments", activeTournamentId, "rounds", String(roundNum), "matches", matchId, "dailyResults", dateString);
-          
-          // Check if dailyResult doc exists before attempting to update non-atomically
-          // For this sync, we'll update if scores are found, assuming dailyResult doc was pre-created
-          // Or, we can upsert with set and merge:true, but PATCH is safer if fields might be missing.
-          // Given _initializeTournamentBracketStructure creates these, they should exist for Round 1.
-          // For subsequent rounds, dailyResults might not be pre-created by _initializeTournamentBracketStructure.
-          // We'll try to update; if it fails because doc doesn't exist, and scores > 0, we could create it.
-          // For now, let's assume _initializeTournamentBracketStructure also creates them for later rounds if team names become known.
-          // For simplicity, we will PATCH. If doc doesn't exist, it won't create.
-          // This might be an issue if Apps Script creates dailyResults on-the-fly for later rounds.
-          // A more robust solution would be to GET then SET, or SET with merge.
-          
-          // We will update the scores. The Apps Script is responsible for winner/loser.
-          // Only update if there's a score to report from sheet data for this day, or if it's different from 0.
-          // This check is optional but can reduce writes if scores are already 0 and sheet data indicates 0.
-          // For this implementation, we will update regardless to ensure sync.
+          // Prepare update for daily result
           batch.update(dailyResultDocRef, {
-            "fields.team1Score.integerValue": team1Score,
-            "fields.team2Score.integerValue": team2Score,
-            // We do NOT update 'winner' or 'loser' here. That's Apps Script's job.
+            "fields.team1Score.integerValue": team1ScoreForDay,
+            "fields.team2Score.integerValue": team2ScoreForDay,
+            "fields.winner": dailyWinnerTeamName ? { stringValue: dailyWinnerTeamName } : { nullValue: null },
+            "fields.loser": dailyLoserTeamName ? { stringValue: dailyLoserTeamName } : { nullValue: null },
+            "fields.status.stringValue": dailyStatus,
           });
-          updatesMade++;
-          details.push(`Prepared update for Round ${roundNum}, Match ${matchId}, Date ${dateString}: ${team1Name} (${team1Score}) vs ${team2Name} (${team2Score})`);
-        }
-      }
-    }
+          updatesMadeCount++; 
+          details.push(`Daily Result Update (R${roundNum} M${matchId} D${dateString}): ${team1Name}(${team1ScoreForDay}) vs ${team2Name}(${team2ScoreForDay}). Daily Winner: ${dailyWinnerTeamName || 'None'}. Status: ${dailyStatus}.`);
+
+          if (!seriesConcludedForThisMatch && (matchTeam1AggregateDailyWins >= 3 || matchTeam2AggregateDailyWins >= 3)) {
+            seriesWinnerForThisMatch = matchTeam1AggregateDailyWins >= 3 ? team1Name : team2Name;
+            seriesConcludedForThisMatch = true; // Mark series as concluded for this sync operation
+            details.push(`Series for Match ${matchId} (Round ${roundNum}) now determined. Winner: ${seriesWinnerForThisMatch}. Further daily wins in this match won't change series outcome for this sync.`);
+          }
+        } // End of 5-day loop for a match
+
+        // Update the parent match document with aggregated daily wins and series winner
+        const parentMatchDocRef = doc(db, "tournaments", activeTournamentId, "rounds", String(roundNum), "matches", matchId);
+        batch.update(parentMatchDocRef, {
+            "fields.team1Wins.integerValue": matchTeam1AggregateDailyWins,
+            "fields.team2Wins.integerValue": matchTeam2AggregateDailyWins,
+            "fields.advanced": seriesWinnerForThisMatch ? { stringValue: seriesWinnerForThisMatch } : { nullValue: null }
+        });
+        updatesMadeCount++; // Count this as one update group (daily + parent match)
+        details.push(`Parent Match Update (R${roundNum} M${matchId}): Team1 Wins: ${matchTeam1AggregateDailyWins}, Team2 Wins: ${matchTeam2AggregateDailyWins}, Series Winner: ${seriesWinnerForThisMatch || 'None'}`);
+      } // End of matches loop for a round
+    } // End of rounds loop
     
-    if (updatesMade > 0) {
+    if (updatesMadeCount > 0) {
       await batch.commit();
-      details.push(`Batch commit successful. ${updatesMade} daily result documents' scores updated.`);
-      return { success: true, message: `Sync complete. Scores for ${updatesMade} daily results updated based on Sheet1Rows.`, details };
+      details.push(`Batch commit successful. ${updatesMadeCount} Firestore field groups updated.`);
+      return { success: true, message: `Sync complete. Daily scores, daily winners/losers, overall match wins, and series winners updated based on Sheet1Rows. ${updatesMadeCount} field groups modified.`, details };
     } else {
-      details.push("No score updates were necessary based on current Sheet1Rows data and tournament structure.");
-      return { success: true, message: "Sync complete. No score updates were necessary.", details };
+      details.push("No score updates or match outcome changes were necessary based on current Sheet1Rows data and tournament structure.");
+      return { success: true, message: "Sync complete. No updates to scores or match outcomes were needed.", details };
     }
 
   } catch (error) {
@@ -277,5 +305,3 @@ export async function refreshAndSaveTournamentData(): Promise<void> {
   console.log("refreshAndSaveTournamentData called, but data updates are driven by Apps Script or new tournament creation.");
   return Promise.resolve();
 }
-
-    
