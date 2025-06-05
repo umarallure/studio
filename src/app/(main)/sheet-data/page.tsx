@@ -11,26 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button'; // Added Button
 import { useToast } from '@/hooks/use-toast'; // Added useToast
 import { syncSheetScoresToDailyResults } from '@/lib/tournament-service'; // Import the new server action
-import { mapDocToTournamentSettings } from '@/lib/tournament-config'; // To get active tournament
+import { mapDocToTournamentSettings, mapDocToSheetRow } from '@/lib/tournament-config'; // To get active tournament and map sheet rows
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert imports
 
 const SHEET_DATA_COLLECTION_PATH = "Sheet1Rows";
-
-// Helper to map Firestore document data to SheetRow type
-function mapDocToSheetRow(docId: string, data: DocumentData | undefined): SheetRow | null {
-  if (!data) return null;
-  return {
-    id: docId,
-    Agent: data.Agent,
-    Date: data.Date,
-    FromCallback: data['From Callback?'], 
-    INSURED_NAME: data['INSURED NAME'],   
-    LeadVender: data['Lead Vender'],      
-    Notes: data.Notes,
-    ProductType: data['Product Type'],    
-    Status: data.Status,
-  };
-}
-
 
 export default function SheetDataPage() {
   const [sheetData, setSheetData] = useState<SheetRow[]>([]);
@@ -217,5 +201,7 @@ export default function SheetDataPage() {
     </div>
   );
 }
+
+    
 
     
