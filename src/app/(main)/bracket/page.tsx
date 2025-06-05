@@ -37,14 +37,14 @@ const getRoundNames = (numberOfRounds: number): { [key: string]: string } => {
 export default function BracketPage() {
   const [activeTournament, setActiveTournament] = useState<TournamentSettings | null>(null);
   const [tournamentDisplayData, setTournamentDisplayData] = useState<TournamentData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Initial loading is true
   const [criticalError, setCriticalError] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Effect to fetch the latest tournament settings
   useEffect(() => {
-    setIsLoading(true);
-    setCriticalError(null);
+    // setIsLoading(true); // Already true from initial state
+    setCriticalError(null); // Clear previous critical errors for a fresh fetch attempt
     const fetchLatestTournament = async () => {
       try {
         const tournamentsRef = collection(db, "tournaments");
@@ -54,40 +54,65 @@ export default function BracketPage() {
         if (querySnapshot.empty) {
           setCriticalError("No tournaments found. Please create a tournament first.");
           setActiveTournament(null);
+          setIsLoading(false); // No tournament found, stop loading.
         } else {
           const tournamentDoc = querySnapshot.docs[0];
           const settings = mapDocToTournamentSettings(tournamentDoc.data(), tournamentDoc.id);
-          setActiveTournament(settings);
+          
+          if (!settings || !settings.id || typeof settings.numberOfRounds !== 'number' || settings.numberOfRounds < 0) {
+            setCriticalError(`Fetched tournament "${settings?.name || 'Unknown'}" has invalid configuration (e.g., missing or invalid number of rounds).`);
+            setActiveTournament(null); // Set to null if invalid
+            setIsLoading(false); // Invalid settings, stop loading.
+          } else {
+            setActiveTournament(settings);
+            // isLoading will be true and handled by the next effect for bracket data loading
+          }
         }
       } catch (error) {
         console.error("Error fetching latest tournament:", error);
         setCriticalError("Failed to load tournament settings. Check Firestore permissions and data.");
         setActiveTournament(null);
-      } finally {
-        // Don't set isLoading to false here yet, bracket data still needs to load
+        setIsLoading(false); // Error fetching, stop loading.
       }
     };
     fetchLatestTournament();
-  }, []);
+  }, []); // Runs once on mount to find the active tournament
 
 
   // Effect to fetch bracket data for the active tournament
   useEffect(() => {
-    if (!activeTournament || !activeTournament.id || !activeTournament.numberOfRounds) {
-      if (!criticalError && !isLoading) { // Only set this if no other critical error or initial load is pending
-         // If activeTournament is null AFTER attempting to fetch it, and no other error, then it means no tournaments exist.
-         // This state is handled by the fetchLatestTournament effect setting criticalError.
-      }
-      if(!activeTournament && !isLoading && !criticalError) {
-        // This means fetchLatestTournament finished, found nothing, and set activeTournament to null.
-        // The criticalError "No tournaments found" should be displayed.
-        // setIsLoading(false); // This might be premature if criticalError was "No tournaments found"
-      }
+    // Guard: If no valid active tournament, do nothing. isLoading should have been handled by the first useEffect.
+    if (!activeTournament || !activeTournament.id || typeof activeTournament.numberOfRounds !== 'number' || activeTournament.numberOfRounds < 0) {
+       // If activeTournament is null or invalid, the first useEffect is responsible for setting isLoading to false.
+       // If by some chance isLoading is still true here with an invalid/null activeTournament, ensure it's false.
+       if (isLoading && !criticalError) {
+           // This state should ideally not be reached if the first effect handles its errors/empty states correctly.
+           // As a safeguard, ensure loading stops if we enter here without a valid tournament and no critical error already set.
+           // However, if criticalError IS set, we want to display that, not overwrite isLoading.
+           // setIsLoading(false);
+       }
       return;
     }
+    
+    // Edge case: Tournament with 0 rounds. Valid but no bracket to display.
+    if (activeTournament.numberOfRounds === 0) {
+        setTournamentDisplayData({ 
+            id: activeTournament.id,
+            name: activeTournament.name,
+            teamCount: activeTournament.teamCount,
+            numberOfRounds: activeTournament.numberOfRounds,
+            startDate: activeTournament.startDate,
+            rounds: [], 
+            prize: tournamentPrize 
+        });
+        setIsLoading(false); // No rounds to fetch, stop loading.
+        return;
+    }
 
-    setIsLoading(true); // Start loading for bracket data
-    setCriticalError(null); // Clear previous errors
+    // Start loading bracket data for the valid active tournament
+    setIsLoading(true); 
+    setCriticalError(null); // Clear previous bracket-specific errors
+    setTournamentDisplayData(null); // Clear any old display data
 
     const unsubscribes: (() => void)[] = [];
     let roundsDataCollector: { [roundId: string]: MatchupType[] } = {};
@@ -98,14 +123,15 @@ export default function BracketPage() {
     const checkAllListenersProcessed = () => {
       listenersAttachedOrFailed++;
       if (listenersAttachedOrFailed >= totalListenersExpected) {
-        setIsLoading(false);
-        if (Object.keys(roundsDataCollector).length === 0 && !criticalError) {
+        setIsLoading(false); // All listeners attached or failed for this tournament, stop loading.
+        if (Object.keys(roundsDataCollector).length === 0 && !criticalError && totalListenersExpected > 0) {
           // This implies rounds might not exist or are empty for the active tournament.
+          // No critical error, but data might be missing. This state is handled by the "noDataExists" check later.
         }
       }
     };
 
-    for (let i = 1; i <= activeTournament.numberOfRounds; i++) {
+    for (let i = 1; i <= totalListenersExpected; i++) {
       const roundId = String(i);
       const matchesCollectionRef = collection(db, "tournaments", activeTournament.id, "rounds", roundId, 'matches');
       const qMatches = query(matchesCollectionRef, orderBy('__name__'));
@@ -135,7 +161,7 @@ export default function BracketPage() {
           }))
           .sort((a, b) => parseInt(a.id) - parseInt(b.id));
         
-        if (activeTournament) {
+        if (activeTournament) { // Check activeTournament again in case it became null during async ops (unlikely here)
             setTournamentDisplayData({ 
                 id: activeTournament.id,
                 name: activeTournament.name,
@@ -146,8 +172,9 @@ export default function BracketPage() {
                 prize: tournamentPrize 
             });
         }
+        // Don't set criticalError to null here unconditionally, an error might have occurred for another round
+        // setCriticalError(null); // Removed: Handled at start of effect
         checkAllListenersProcessed();
-        setCriticalError(null);
 
       }, (error) => {
         console.error(`Error fetching matchups for tournament ${activeTournament.id}, round ${roundId}:`, error);
@@ -156,16 +183,17 @@ export default function BracketPage() {
           description: `Could not load data for round ${roundId}. It might be incomplete.`,
           variant: "destructive",
         });
-        checkAllListenersProcessed();
         setCriticalError(prev => prev || `Failed to load data for Round ${roundId} of tournament ${activeTournament.name}. Check Firestore access and data structure.`);
+        checkAllListenersProcessed(); // Also call this on error to count towards completion
       });
       unsubscribes.push(unsubscribeRound);
     }
 
     const loadingTimeout = setTimeout(() => {
-        if (listenersAttachedOrFailed < totalListenersExpected) {
-            setIsLoading(false);
+        if (isLoading) { // Only if still loading after timeout (i.e., listeners didn't complete/error out)
+            setIsLoading(false); // Force stop loading
             if (!criticalError && Object.keys(roundsDataCollector).length === 0 && activeTournament) {
+                // Timeout occurred, no data collected, and no other critical error reported yet
                 setCriticalError(`Loading tournament data for "${activeTournament.name}" timed out. Ensure match documents under "tournaments/${activeTournament.id}/rounds/[roundNum]/matches/" are populated.`);
                 toast({
                     title: "Loading Timeout",
@@ -173,9 +201,10 @@ export default function BracketPage() {
                     variant: "warning",
                 });
             } else if (!criticalError && activeTournament) {
+                // Timeout, but some data might have been collected or other non-critical issues.
                 toast({
-                    title: "Partial Data Loaded",
-                    description: `Not all rounds for "${activeTournament.name}" responded in time. Display may be incomplete.`,
+                    title: "Partial Data Loaded or Timeout",
+                    description: `Not all rounds for "${activeTournament.name}" responded in time, or loading took too long. Display may be incomplete.`,
                     variant: "warning",
                 });
             }
@@ -186,7 +215,7 @@ export default function BracketPage() {
       unsubscribes.forEach(unsub => unsub());
       clearTimeout(loadingTimeout);
     };
-  }, [activeTournament, toast, criticalError, isLoading]); // Added isLoading to dependencies of second useEffect
+  }, [activeTournament, toast]); // Dependencies are activeTournament (to trigger fetch) and toast (for error reporting)
 
   const confirmLiveUpdates = () => {
     toast({
@@ -204,6 +233,7 @@ export default function BracketPage() {
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="text-lg text-foreground font-headline">Loading Tournament Bracket...</p>
         {activeTournament && <p className="text-sm text-muted-foreground">Fetching data for: {activeTournament.name}</p>}
+        {!activeTournament && <p className="text-sm text-muted-foreground">Finding latest tournament...</p>}
       </div>
     );
   }
@@ -219,7 +249,7 @@ export default function BracketPage() {
           {activeTournament?.id && <>Matchup documents are expected at:
           <br /> <code className="text-xs bg-muted p-1 rounded inline-block my-1">tournaments/{activeTournament.id}/rounds/[roundNum]/matches/[matchId]</code>.</>}
           <br />Also, check your internet connection and Firestore security rules.
-          <br />You can try creating a new tournament if none exist.
+          <br />You can try creating a new tournament if none exist or reloading.
         </p>
         <Button onClick={() => window.location.reload()} variant="destructive" className="mt-6">
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -239,7 +269,7 @@ export default function BracketPage() {
         <p className="text-muted-foreground max-w-lg">
           Matchup documents will appear here automatically in real-time as they are created.
           {activeTournament?.id && <>Ensure data is being written to Firestore at: <code className="text-xs bg-muted p-1 rounded inline-block my-1">tournaments/{activeTournament.id}/rounds/[roundNum]/matches/[matchId]</code>.</>}
-          {!activeTournament && "Consider creating a new tournament if none are set up."}
+          {!activeTournament && "No active tournament found. Consider creating a new tournament if none are set up."}
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="mt-6">
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -273,3 +303,4 @@ export default function BracketPage() {
     </div>
   );
 }
+
