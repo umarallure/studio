@@ -90,7 +90,7 @@ const getEntryStatsByStatusForChartFlow = ai.defineFlow(
       ];
 
       if (leadVenderFilter) {
-        queryConstraints.push(where("LeadVender", "==", leadVenderFilter));
+        queryConstraints.push(where("Lead Vender", "==", leadVenderFilter)); // Corrected field name
       }
 
       const q = query(sheetRowsCollectionRef, ...queryConstraints);

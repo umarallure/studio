@@ -59,11 +59,11 @@ const getDailySubmissionsFlow = ai.defineFlow(
       ];
 
       if (leadVenderFilter) {
-        queryConstraints.push(where("LeadVender", "==", leadVenderFilter)); // Assumes 'LeadVender' field is a string
+        queryConstraints.push(where("Lead Vender", "==", leadVenderFilter)); // Corrected field name
       }
       
       const q = query(sheetRowsCollectionRef, ...queryConstraints);
-      console.log(`[Genkit Flow Internal] Executing Firestore query for date: ${targetDate}, filter: ${leadVenderFilter || 'None'}.`);
+      console.log(`[Genkit Flow Internal] Executing Firestore query for date: ${targetDate}, filter: ${leadVenderFilter || 'None'}. Constraints: ${JSON.stringify(queryConstraints.map(qc => (qc as any)._op + " " + (qc as any)._field + " " + (qc as any)._value))}`);
       
       const querySnapshot = await getDocs(q);
       submissionCount = querySnapshot.size;
@@ -90,4 +90,3 @@ const getDailySubmissionsFlow = ai.defineFlow(
     }
   }
 );
-
