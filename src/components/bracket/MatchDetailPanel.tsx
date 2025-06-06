@@ -50,7 +50,6 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
   const [topPerformerTeam1, setTopPerformerTeam1] = useState<TeamTopPerformer | null>(null);
   const [topPerformerTeam2, setTopPerformerTeam2] = useState<TeamTopPerformer | null>(null);
 
-
   const { toast } = useToast();
 
   const formattedSelectedDate = useMemo(() => {
@@ -59,6 +58,7 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
 
   const displaySelectedDate = useMemo(() => selectedDateInternal ? format(selectedDateInternal, 'PPP') : "Select Date", [selectedDateInternal]);
 
+  // Effect to fetch the specific scheduled dates for this match
   useEffect(() => {
     console.log(`[PanelEffect isOpen/matchup] isOpen: ${isOpen}, matchupId: ${matchup?.id}`);
     if (isOpen && matchup && tournamentId && matchup.roundId) {
@@ -95,7 +95,7 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     }
   }, [isOpen, matchup, tournamentId, toast]);
 
-
+  // Effect to set initial selectedDateInternal based on fetched scheduled dates and client's current date
   useEffect(() => {
     console.log(`[PanelEffect InitialDate Trigger] M:${matchup?.id}, isFetchingScheduledDates: ${isFetchingScheduledDates}, matchScheduledDates:`, JSON.stringify(matchScheduledDates));
     if (isFetchingScheduledDates || !matchup) {
@@ -145,7 +145,6 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     } else {
         console.log(`[PanelEffect InitialDate NoChange] M:${matchup.id}. selectedDateInternal already: ${format(selectedDateInternal, 'yyyy-MM-dd')}`);
     }
-
   }, [matchScheduledDates, isFetchingScheduledDates, matchup]); 
 
   const fetchPanelData = useCallback(async () => {
@@ -171,7 +170,6 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     setPanelError(null);
     setMatchDailyResult(null); setTeam1Entries([]); setTeam2Entries([]); 
     setTopPerformerTeam1(null); setTopPerformerTeam2(null);
-
 
     try {
       console.log(`[PanelFetch CALLING] getMatchDailyResult for M:${matchup.id} D:${currentFormattedDate}...`);
@@ -221,30 +219,39 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
   }, [isOpen, matchup, tournamentId, selectedDateInternal, toast]);
 
 
+  // Effect to fetch main panel data when inputs change
   useEffect(() => {
-    console.log(`[PanelEffect DataTrigger] M_ID:${matchup?.id}, isOpen:${isOpen}, tournamentId:${!!tournamentId}, roundId:${!!matchup?.roundId}, team1Valid:${matchup?.team1Name && matchup.team1Name.toLowerCase() !== "tbd"}, team2Valid:${matchup?.team2Name && matchup.team2Name.toLowerCase() !== "tbd"}, selDate:${selectedDateInternal ? format(selectedDateInternal, 'yyyy-MM-dd') : 'null'}`);
+    console.log(`[PanelEffect DataTrigger] M_ID:${matchup?.id}, isOpen:${isOpen}, tournamentId:${!!tournamentId}, roundId:${!!matchup?.roundId}, team1Valid:${matchup?.team1Name && matchup.team1Name.toLowerCase() !== "tbd"}, team2Valid:${matchup?.team2Name && matchup.team2Name.toLowerCase() !== "tbd"}, selDate:${formattedSelectedDate}`);
 
-    if (isOpen && matchup && tournamentId && matchup.roundId &&
-        matchup.team1Name && matchup.team1Name.toLowerCase() !== "tbd" &&
-        matchup.team2Name && matchup.team2Name.toLowerCase() !== "tbd" &&
-        selectedDateInternal
+    if (
+      isOpen &&
+      matchup &&
+      tournamentId &&
+      matchup.roundId &&
+      matchup.team1Name && matchup.team1Name.toLowerCase() !== "tbd" &&
+      matchup.team2Name && matchup.team2Name.toLowerCase() !== "tbd" &&
+      selectedDateInternal // ensure a date is actually selected
     ) {
-        console.log(`[PanelEffect DataTrigger] Conditions met. Calling fetchPanelData for M:${matchup.id} on D:${format(selectedDateInternal, 'yyyy-MM-dd')}.`);
+        // Removed the isSelectedDateFutureForClient check here
+        console.log(`[PanelEffect DataTrigger] Conditions met. Calling fetchPanelData for M:${matchup.id} on D:${formattedSelectedDate}.`);
         fetchPanelData();
     } else if (isOpen && matchup) {
-      console.log(`[PanelEffect DataTrigger] Conditions for full fetch NOT met. M:${matchup?.id}, D:${selectedDateInternal ? format(selectedDateInternal, 'yyyy-MM-dd') : 'null'}. Clearing data or showing TBD message.`);
+      console.log(`[PanelEffect DataTrigger] Conditions for full fetch NOT met. M:${matchup?.id}, D:${formattedSelectedDate}. Clearing data or showing TBD message.`);
+      setMatchDailyResult(null);
+      setTeam1Entries([]);
+      setTeam2Entries([]);
+      setTopPerformerTeam1(null);
+      setTopPerformerTeam2(null);
       if (matchup.team1Name?.toLowerCase() === "tbd" || matchup.team2Name?.toLowerCase() === "tbd") {
         setPanelError("Teams for this matchup are not yet determined.");
       } else {
          setPanelError(null); 
       }
-      setMatchDailyResult(null); setTeam1Entries([]); setTeam2Entries([]);
-      setTopPerformerTeam1(null); setTopPerformerTeam2(null);
-      if (isLoadingPanelData) setIsLoadingPanelData(false);
+      setIsLoadingPanelData(false);
     }
-  }, [isOpen, matchup, tournamentId, selectedDateInternal, fetchPanelData]);
+  }, [isOpen, matchup, tournamentId, selectedDateInternal, formattedSelectedDate, fetchPanelData]);
 
-
+  // Effect to calculate top performers for each team
   useEffect(() => {
     const calculateTopPerformers = (entries: PanelEntry[]): TeamTopPerformer | null => {
       if (entries.length === 0) return null;
@@ -255,13 +262,18 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
         }
       });
       if (agentCounts.size === 0) return null;
-      let topAgent: TeamTopPerformer = { name: '', count: 0 };
+      let topAgent: TeamTopPerformer = { name: 'N/A', count: 0 }; // Default if no agent found
+      let foundAgent = false;
       agentCounts.forEach((count, name) => {
         if (count > topAgent.count) {
           topAgent = { name, count };
+          foundAgent = true;
+        } else if (count === topAgent.count && !foundAgent) { // Handle first agent if all have 1 sub
+            topAgent = { name, count };
+            foundAgent = true;
         }
       });
-      return topAgent.count > 0 ? topAgent : null;
+      return foundAgent ? topAgent : null;
     };
 
     if (matchup?.team1Name && matchup.team1Name.toLowerCase() !== "tbd") {
@@ -299,17 +311,20 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
   } else if (panelError) {
     dayPerformanceSummary = panelError;
   } else if (!matchDailyResult || !matchDailyResult.exists) {
-    dayPerformanceSummary = `No official daily result record found for ${displaySelectedDate}. Check Sheet1Rows below for submitted entries.`;
+    dayPerformanceSummary = `No official daily result record found for ${displaySelectedDate}. Submitted entries via Sheet1Rows (if any) are displayed below.`;
   } else { 
     const diff = Math.abs(team1ScoreForDay - team2ScoreForDay);
-    if (seriesWinnerName) { // Series already decided
+     const team1Display = matchDailyResult.team1Name || team1Name || "Team 1";
+     const team2Display = matchDailyResult.team2Name || team2Name || "Team 2";
+
+    if (seriesWinnerName) { 
         dayPerformanceSummary = `Series Winner: ${seriesWinnerName}. On ${displaySelectedDate} (${dailyMatchStatus || 'Status Unknown'}): `;
-        if(dailyWinnerName) dayPerformanceSummary += `${dailyWinnerName} won.`; else if (dailyMatchStatus?.includes("Tie")) dayPerformanceSummary += `Tie.`; else dayPerformanceSummary += `Scores: ${team1Name} ${team1ScoreForDay} - ${team2Name} ${team2ScoreForDay}.`;
-    } else { // Series ongoing
+        if(dailyWinnerName) dayPerformanceSummary += `${dailyWinnerName} won.`; else if (dailyMatchStatus?.includes("Tie")) dayPerformanceSummary += `Tie.`; else dayPerformanceSummary += `Scores: ${team1Display} ${team1ScoreForDay} - ${team2Display} ${team2ScoreForDay}.`;
+    } else { 
         if (team1ScoreForDay > team2ScoreForDay) {
-          dayPerformanceSummary = `${team1Name} won the day with ${team1ScoreForDay} submissions, leading by ${diff} over ${team2Name}'s ${team2ScoreForDay}. Status: ${dailyMatchStatus || 'Completed'}.`;
+          dayPerformanceSummary = `${team1Display} won the day with ${team1ScoreForDay} submissions, leading by ${diff} over ${team2Display}'s ${team2ScoreForDay}. Status: ${dailyMatchStatus || 'Completed'}.`;
         } else if (team2ScoreForDay > team1ScoreForDay) {
-          dayPerformanceSummary = `${team2Name} won the day with ${team2ScoreForDay} submissions, leading by ${diff} over ${team1Name}'s ${team1ScoreForDay}. Status: ${dailyMatchStatus || 'Completed'}.`;
+          dayPerformanceSummary = `${team2Display} won the day with ${team2ScoreForDay} submissions, leading by ${diff} over ${team1Display}'s ${team1ScoreForDay}. Status: ${dailyMatchStatus || 'Completed'}.`;
         } else if (team1ScoreForDay === team2ScoreForDay && team1ScoreForDay > 0) {
           dayPerformanceSummary = `It was a tie on ${displaySelectedDate} with ${team1ScoreForDay} submissions each! Status: ${dailyMatchStatus || 'Completed - Tie'}.`;
         } else { 
@@ -319,6 +334,9 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
   }
   
   console.log(`[PanelRender] M_ID: ${matchup.id}, isLoadingPanelData: ${isLoadingPanelData}, isFetchingScheduledDates: ${isFetchingScheduledDates}, panelError: ${panelError}, DailyResult:`, JSON.stringify(matchDailyResult), "DaySummary:", dayPerformanceSummary, "SelDate:", selectedDateInternal ? format(selectedDateInternal, 'yyyy-MM-dd') : 'null', "MatchScheduledDates:", JSON.stringify(matchScheduledDates));
+  console.log(`[PanelRender] Team1Entries Count: ${team1Entries.length}, Team2Entries Count: ${team2Entries.length}`);
+  console.log(`[PanelRender] TopPerformerT1:`, JSON.stringify(topPerformerTeam1), `TopPerformerT2:`, JSON.stringify(topPerformerTeam2));
+
 
   const renderEntryList = (entries: PanelEntry[], teamDisplayName: string | null) => {
     const actualTeamName = teamDisplayName || "this team";
@@ -332,7 +350,7 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     }
 
     return (
-      <ul className="space-y-2 max-h-32 overflow-y-auto pr-2">
+      <ul className="space-y-2 max-h-28 overflow-y-auto pr-2">
         {entries.map(entry => (
           <li key={entry.id} className="text-sm p-2 rounded-md bg-muted/50">
             <p className="font-medium">{entry.INSURED_NAME || 'N/A'}</p>
@@ -439,7 +457,8 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
                       const isThisDateScheduledForThisMatch = matchScheduledDates.includes(dateString);
                       console.log(`[CalendarDisabled] Date ${dateString}: Scheduled? ${isThisDateScheduledForThisMatch}. All sched: ${JSON.stringify(matchScheduledDates)}`);
                       
-                      return !isThisDateScheduledForThisMatch; 
+                      // Only disable if it's NOT a scheduled date
+                      return !isThisDateScheduledForThisMatch;
                     }}
                     initialFocus
                   />
@@ -478,11 +497,11 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-center mb-3">
                       <div>
                         <p className="text-4xl font-bold font-headline text-primary">{team1ScoreForDay}</p>
-                        <p className="text-sm text-muted-foreground">{team1Name} (from DailyResult)</p>
+                        <p className="text-sm text-muted-foreground">{matchDailyResult?.team1Name || team1Name} (from DailyResult)</p>
                       </div>
                       <div>
                         <p className="text-4xl font-bold font-headline text-primary">{team2ScoreForDay}</p>
-                        <p className="text-sm text-muted-foreground">{team2Name} (from DailyResult)</p>
+                        <p className="text-sm text-muted-foreground">{matchDailyResult?.team2Name || team2Name} (from DailyResult)</p>
                       </div>
                     </div>
                     <p className="text-center font-semibold text-foreground/90 text-sm">
@@ -494,37 +513,37 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{team1Name || "Team 1"} - Top Performer</CardTitle>
-                      <Star className="h-4 w-4 text-muted-foreground text-yellow-500" />
+                      <CardTitle className="text-sm font-medium">{(matchDailyResult?.team1Name || team1Name || "Team 1")} - Top Performer</CardTitle>
+                      <Star className="h-4 w-4 text-yellow-500" />
                     </CardHeader>
                     <CardContent>
                       {topPerformerTeam1 ? (
                         <>
                           <div className="text-2xl font-bold">{topPerformerTeam1.name}</div>
                           <p className="text-xs text-muted-foreground">
-                            {topPerformerTeam1.count} submissions
+                            {topPerformerTeam1.count} submission(s)
                           </p>
                         </>
                       ) : (
-                        <p className="text-sm text-muted-foreground">No submissions found for {team1Name || "Team 1"}.</p>
+                        <p className="text-sm text-muted-foreground">No submissions found for {(matchDailyResult?.team1Name || team1Name || "Team 1")}.</p>
                       )}
                     </CardContent>
                   </Card>
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{team2Name || "Team 2"} - Top Performer</CardTitle>
-                       <Star className="h-4 w-4 text-muted-foreground text-yellow-500" />
+                      <CardTitle className="text-sm font-medium">{(matchDailyResult?.team2Name || team2Name || "Team 2")} - Top Performer</CardTitle>
+                       <Star className="h-4 w-4 text-yellow-500" />
                     </CardHeader>
                     <CardContent>
                       {topPerformerTeam2 ? (
                         <>
                           <div className="text-2xl font-bold">{topPerformerTeam2.name}</div>
                           <p className="text-xs text-muted-foreground">
-                            {topPerformerTeam2.count} submissions
+                            {topPerformerTeam2.count} submission(s)
                           </p>
                         </>
                       ) : (
-                        <p className="text-sm text-muted-foreground">No submissions found for {team2Name || "Team 2"}.</p>
+                        <p className="text-sm text-muted-foreground">No submissions found for {(matchDailyResult?.team2Name || team2Name || "Team 2")}.</p>
                       )}
                     </CardContent>
                   </Card>
@@ -534,21 +553,21 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-md flex items-center">
-                        <ListChecks className="mr-2 h-5 w-5 text-primary" /> {team1Name} - Submitted Entries (Sheet1Rows)
+                        <ListChecks className="mr-2 h-5 w-5 text-primary" /> {(matchDailyResult?.team1Name || team1Name)} - Submitted Entries (Sheet1Rows)
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      {renderEntryList(team1Entries, team1Name)}
+                      {renderEntryList(team1Entries, (matchDailyResult?.team1Name || team1Name))}
                     </CardContent>
                   </Card>
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-md flex items-center">
-                        <ListChecks className="mr-2 h-5 w-5 text-primary" /> {team2Name} - Submitted Entries (Sheet1Rows)
+                        <ListChecks className="mr-2 h-5 w-5 text-primary" /> {(matchDailyResult?.team2Name || team2Name)} - Submitted Entries (Sheet1Rows)
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      {renderEntryList(team2Entries, team2Name)}
+                      {renderEntryList(team2Entries, (matchDailyResult?.team2Name || team2Name))}
                     </CardContent>
                   </Card>
                 </div>
@@ -573,3 +592,5 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
   );
 }
 
+
+    
