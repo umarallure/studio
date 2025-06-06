@@ -47,8 +47,6 @@ export default function BracketPage() {
 
   const handleMatchupCardClick = useCallback((matchup: MatchupType) => {
     console.log("[BracketPage] handleMatchupCardClick triggered for matchup:", matchup.id);
-    // Condition for opening panel is already handled in MatchupCard's onClick,
-    // but a safety check here is fine or can be simplified if desired.
     if (!matchup.team1Name || matchup.team1Name.toLowerCase() === "tbd" || 
         !matchup.team2Name || matchup.team2Name.toLowerCase() === "tbd") {
       toast({
@@ -140,7 +138,7 @@ export default function BracketPage() {
     let roundsProcessedCount = 0; 
     const totalListenersExpected = activeTournament.numberOfRounds;
     const currentRoundNames = getRoundNames(activeTournament.numberOfRounds);
-    const initiallyProcessedRounds = new Set<string>(); // To track initial load per round listener
+    const initiallyProcessedRounds = new Set<string>(); 
 
     console.log(`[BracketPage Effect 2] Expecting ${totalListenersExpected} rounds for "${activeTournament.name}".`);
 
@@ -173,7 +171,7 @@ export default function BracketPage() {
         roundsDataCollector[roundId] = matchupsForRound;
 
         const newRounds: Round[] = Object.keys(roundsDataCollector)
-          .filter(rId => /^\d+$/.test(rId)) // Ensure rId is purely numeric (e.g. "1", "2", not "1_processed_initial")
+          .filter(rId => /^\d+$/.test(rId)) 
           .map(rId => ({
             id: rId,
             name: currentRoundNames[rId] || `Round ${rId}`,
@@ -248,7 +246,7 @@ export default function BracketPage() {
       unsubscribes.forEach(unsub => unsub());
       clearTimeout(loadingTimeout);
     };
-  }, [activeTournament, toast]);
+  }, [activeTournament, toast]); // isLoading was removed here
 
   const confirmLiveUpdates = () => {
     toast({
@@ -355,7 +353,7 @@ export default function BracketPage() {
         isOpen={isMatchDetailPanelOpen} 
         onOpenChange={setIsMatchDetailPanelOpen} 
         matchup={selectedMatchupForPanel}
-        tournamentStartDate={activeTournament?.startDate || null}
+        tournamentId={activeTournament?.id || null}
       />
     </div>
   );
