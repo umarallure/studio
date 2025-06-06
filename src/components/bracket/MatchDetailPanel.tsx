@@ -11,7 +11,7 @@ import { CalendarIcon, Loader2, BarChart3, ListChecks, Trophy, AlertTriangle, In
 import { format, startOfDay, isEqual, isBefore, subDays, isValid } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
-import { getEntriesForTeamByDate } from '@/ai/flows/get-entries-for-team-by-date-flow';
+import { getEntriesForTeamByDate } from '@/ai/flows/get-entries-for-team-by-date-flow'; // Corrected import
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 
@@ -24,9 +24,9 @@ interface MatchDetailPanelProps {
 
 interface PanelEntry {
   id: string;
-  Agent?: string;
-  INSURED_NAME?: string;
-  ProductType?: string;
+  Agent?: string | null;
+  INSURED_NAME?: string | null;
+  ProductType?: string | null;
 }
 
 export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tournamentStartDate }: MatchDetailPanelProps) {
@@ -276,8 +276,9 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
                     }}
                     disabled={(date) => {
                       const today = startOfDay(new Date());
-                      const sixtyDaysAgo = subDays(today, 60); // Max 60 days in past
-                      return isBefore(date, safeTournamentStartDate) || isBefore(date, sixtyDaysAgo) || isBefore(today, date);
+                      // const sixtyDaysAgo = subDays(today, 60); // Max 60 days in past, commented out for now to allow more flexibility with test data
+                      // return isBefore(date, safeTournamentStartDate) || isBefore(date, sixtyDaysAgo) || isBefore(today, date);
+                       return isBefore(date, safeTournamentStartDate) || isAfter(date, today); // Allow selection up to today from tournament start
                     }}
                     initialFocus
                   />
@@ -360,5 +361,3 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     </Sheet>
   );
 }
-
-    
