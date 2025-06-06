@@ -13,16 +13,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, doc } from 'firebase/firestore';
 import { tournamentPrize } from '@/lib/mock-data'; // Static prize for now
+import MatchDetailPanel from '@/components/bracket/MatchDetailPanel';
 
 const ROUND_NAMES_BASE: { [key: string]: string } = {
   "1": "Round 1",
   "2": "Round 2",
   "3": "Round 3",
   "4": "Round 4",
-  "5": "Round 5", // For up to 32 teams if needed
+  "5": "Round 5",
 };
 
-// Function to generate round names dynamically
 const getRoundNames = (numberOfRounds: number): { [key: string]: string } => {
   const names: { [key: string]: string } = {};
   for (let i = 1; i <= numberOfRounds; i++) {
@@ -38,14 +38,35 @@ const getRoundNames = (numberOfRounds: number): { [key: string]: string } => {
 export default function BracketPage() {
   const [activeTournament, setActiveTournament] = useState<TournamentSettings | null>(null);
   const [tournamentDisplayData, setTournamentDisplayData] = useState<TournamentData | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Initial loading is true
+  const [isLoading, setIsLoading] = useState(true);
   const [criticalError, setCriticalError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Effect to fetch the latest tournament settings
+  const [isMatchDetailPanelOpen, setIsMatchDetailPanelOpen] = useState(false);
+  const [selectedMatchupForPanel, setSelectedMatchupForPanel] = useState<MatchupType | null>(null);
+
+  const handleMatchupCardClick = useCallback((matchup: MatchupType) => {
+    console.log("[BracketPage] handleMatchupCardClick triggered for matchup:", matchup.id);
+    if (!matchup.team1Name || matchup.team1Name.toLowerCase() === "tbd" || 
+        !matchup.team2Name || matchup.team2Name.toLowerCase() === "tbd") {
+      toast({
+        title: "Matchup Not Ready",
+        description: "Detailed stats are available once both teams are determined.",
+        variant: "default",
+      });
+      console.log("[BracketPage] Matchup not ready for details panel.");
+      return;
+    }
+    setSelectedMatchupForPanel(matchup);
+    setIsMatchDetailPanelOpen(true);
+    console.log("[BracketPage] Set selectedMatchupForPanel to:", matchup.id, "and isMatchDetailPanelOpen to true.");
+  }, [toast]);
+
+
   useEffect(() => {
-    // setIsLoading(true); // Already true from initial state
-    setCriticalError(null); // Clear previous critical errors for a fresh fetch attempt
+    console.log("[BracketPage Effect 1] Initializing: Fetching latest tournament.");
+    setIsLoading(true);
+    setCriticalError(null);
     const fetchLatestTournament = async () => {
       try {
         const tournamentsRef = collection(db, "tournaments");
@@ -55,41 +76,48 @@ export default function BracketPage() {
         if (querySnapshot.empty) {
           setCriticalError("No tournaments found. Please create a tournament first.");
           setActiveTournament(null);
-          setIsLoading(false); // No tournament found, stop loading.
+          console.log("[BracketPage Effect 1] No tournaments found.");
         } else {
           const tournamentDoc = querySnapshot.docs[0];
           const settings = mapDocToTournamentSettings(tournamentDoc.data(), tournamentDoc.id);
           
           if (!settings || !settings.id || typeof settings.numberOfRounds !== 'number' || settings.numberOfRounds < 0) {
-            setCriticalError(`Fetched tournament "${settings?.name || 'Unknown'}" has invalid configuration (e.g., missing or invalid number of rounds).`);
-            setActiveTournament(null); // Set to null if invalid
-            setIsLoading(false); // Invalid settings, stop loading.
+            setCriticalError(`Fetched tournament "${settings?.name || 'Unknown'}" has invalid configuration.`);
+            setActiveTournament(null);
+            console.log("[BracketPage Effect 1] Invalid tournament settings for:", settings?.name);
           } else {
             setActiveTournament(settings);
-            // isLoading will be true and handled by the next effect for bracket data loading
+            console.log("[BracketPage Effect 1] Active tournament set:", settings.name, "ID:", settings.id);
           }
         }
       } catch (error) {
-        console.error("Error fetching latest tournament:", error);
-        setCriticalError("Failed to load tournament settings. Check Firestore permissions and data.");
+        console.error("[BracketPage Effect 1] Error fetching latest tournament:", error);
+        setCriticalError("Failed to load tournament settings.");
         setActiveTournament(null);
-        setIsLoading(false); // Error fetching, stop loading.
+      } finally {
+        // setIsLoading(false) will be handled by the second effect or if activeTournament remains null
       }
     };
     fetchLatestTournament();
-  }, []); // Runs once on mount to find the active tournament
+  }, []);
 
 
-  // Effect to fetch bracket data for the active tournament
   useEffect(() => {
     if (!activeTournament || !activeTournament.id || typeof activeTournament.numberOfRounds !== 'number' || activeTournament.numberOfRounds < 0) {
-       if (isLoading && !criticalError) {
-           // setIsLoading(false); // Handled by first effect
+       if (!criticalError) { // Only set loading false if no critical error already set by first effect
+            console.log("[BracketPage Effect 2] Bailing out: Active tournament is null or invalid. Current isLoading:", isLoading);
+            if (isLoading) setIsLoading(false); // Ensure loading stops if we bail here.
        }
       return;
     }
     
+    console.log(`[BracketPage Effect 2] Active tournament found: "${activeTournament.name}". Preparing to load bracket data. Current isLoading: ${isLoading}`);
+    if(!isLoading) setIsLoading(true); // Set loading true specifically for bracket data loading phase if not already.
+    setCriticalError(null); 
+    setTournamentDisplayData(null); 
+
     if (activeTournament.numberOfRounds === 0) {
+        console.log(`[BracketPage Effect 2] Tournament "${activeTournament.name}" has 0 rounds. Setting empty display data.`);
         setTournamentDisplayData({ 
             id: activeTournament.id,
             name: activeTournament.name,
@@ -105,20 +133,21 @@ export default function BracketPage() {
         return;
     }
 
-    setIsLoading(true); 
-    setCriticalError(null); 
-    setTournamentDisplayData(null); 
-
     const unsubscribes: (() => void)[] = [];
     let roundsDataCollector: { [roundId: string]: MatchupType[] } = {};
-    let listenersAttachedOrFailed = 0;
+    let roundsProcessedCount = 0; // Counter for initial data load or error per round
     const totalListenersExpected = activeTournament.numberOfRounds;
     const currentRoundNames = getRoundNames(activeTournament.numberOfRounds);
 
-    const checkAllListenersProcessed = () => {
-      listenersAttachedOrFailed++;
-      if (listenersAttachedOrFailed >= totalListenersExpected) {
-        setIsLoading(false); 
+    console.log(`[BracketPage Effect 2] Expecting ${totalListenersExpected} rounds for "${activeTournament.name}".`);
+
+    const checkAllInitialLoadsComplete = () => {
+      roundsProcessedCount++;
+      console.log(`[BracketPage Effect 2] Round processed (${roundsProcessedCount}/${totalListenersExpected}).`);
+      if (roundsProcessedCount >= totalListenersExpected) {
+        console.log(`[BracketPage Effect 2] All ${totalListenersExpected} rounds processed their initial data/error. Setting isLoading to false.`);
+        setIsLoading(false);
+        clearTimeout(loadingTimeout); // Clear the safety timeout
       }
     };
 
@@ -126,8 +155,10 @@ export default function BracketPage() {
       const roundId = String(i);
       const matchesCollectionRef = collection(db, "tournaments", activeTournament.id, "rounds", roundId, 'matches');
       const qMatches = query(matchesCollectionRef, orderBy('__name__'));
+      console.log(`[BracketPage Effect 2] Setting up listener for Round ${roundId} in tournament ${activeTournament.id}`);
 
       const unsubscribeRound = onSnapshot(qMatches, (snapshot) => {
+        console.log(`[BracketPage Effect 2] Data received for Round ${roundId}. Processing ${snapshot.docs.length} matches.`);
         const matchupsForRound: MatchupType[] = [];
         snapshot.forEach((matchDoc) => {
           const matchup = mapFirestoreDocToMatchup(matchDoc.id, roundId, matchDoc.data());
@@ -165,46 +196,57 @@ export default function BracketPage() {
                 prize: tournamentPrize 
             });
         }
-        checkAllListenersProcessed();
+        // Call only after the first snapshot for this round to count towards initial load
+        if (roundsProcessedCount < totalListenersExpected && !Object.keys(roundsDataCollector).includes(roundId + "_processed_initial")) {
+            roundsDataCollector[roundId + "_processed_initial"] = []; // Mark as processed for initial load count
+            checkAllInitialLoadsComplete();
+        }
+
 
       }, (error) => {
-        console.error(`Error fetching matchups for tournament ${activeTournament.id}, round ${roundId}:`, error);
+        console.error(`[BracketPage Effect 2] Error fetching matchups for tournament ${activeTournament.id}, round ${roundId}:`, error);
         toast({
           title: `Error Loading Round ${roundId}`,
           description: `Could not load data for round ${roundId}. It might be incomplete.`,
           variant: "destructive",
         });
-        setCriticalError(prev => prev || `Failed to load data for Round ${roundId} of tournament ${activeTournament.name}. Check Firestore access and data structure.`);
-        checkAllListenersProcessed(); 
+        setCriticalError(prev => prev || `Failed to load data for Round ${roundId} of tournament ${activeTournament.name}.`);
+        // Call even on error to count towards initial load attempt
+        if (roundsProcessedCount < totalListenersExpected && !Object.keys(roundsDataCollector).includes(roundId + "_processed_initial")) {
+             roundsDataCollector[roundId + "_processed_initial"] = [];
+            checkAllInitialLoadsComplete();
+        }
       });
       unsubscribes.push(unsubscribeRound);
     }
 
     const loadingTimeout = setTimeout(() => {
-        if (isLoading) { 
+        if (isLoading) { // Check if still loading after timeout
+            console.warn(`[BracketPage Effect 2] Loading timeout after 10s for "${activeTournament?.name}". Processed ${roundsProcessedCount}/${totalListenersExpected} rounds.`);
             setIsLoading(false); 
-            if (!criticalError && Object.keys(roundsDataCollector).length === 0 && activeTournament) {
-                setCriticalError(`Loading tournament data for "${activeTournament.name}" timed out. Ensure match documents under "tournaments/${activeTournament.id}/rounds/[roundNum]/matches/" are populated.`);
+            if (!criticalError && (!tournamentDisplayData || Object.keys(roundsDataCollector).length === 0) && activeTournament) {
+                setCriticalError(`Loading tournament data for "${activeTournament.name}" timed out.`);
                 toast({
                     title: "Loading Timeout",
-                    description: "Could not retrieve bracket data in time. Display may be incomplete. Check Firestore.",
+                    description: "Could not retrieve bracket data in time. Display may be incomplete.",
                     variant: "warning",
                 });
             } else if (!criticalError && activeTournament) {
-                toast({
-                    title: "Partial Data Loaded or Timeout",
-                    description: `Not all rounds for "${activeTournament.name}" responded in time, or loading took too long. Display may be incomplete.`,
+                 toast({
+                    title: "Partial Data or Timeout",
+                    description: `Some rounds for "${activeTournament.name}" may not have loaded. Display may be incomplete.`,
                     variant: "warning",
                 });
             }
         }
-    }, 15000); 
+    }, 10000); // Reduced timeout
 
     return () => {
+      console.log("[BracketPage Effect 2] Cleanup: Unsubscribing from Firestore listeners and clearing timeout.");
       unsubscribes.forEach(unsub => unsub());
       clearTimeout(loadingTimeout);
     };
-  }, [activeTournament, toast]); 
+  }, [activeTournament, toast]); // Removed isLoading from here
 
   const confirmLiveUpdates = () => {
     toast({
@@ -237,8 +279,6 @@ export default function BracketPage() {
           Please ensure your tournament setup is correct and data is being populated in Firestore.
           {activeTournament?.id && <>Matchup documents are expected at:
           <br /> <code className="text-xs bg-muted p-1 rounded inline-block my-1">tournaments/{activeTournament.id}/rounds/[roundNum]/matches/[matchId]</code>.</>}
-          <br />Also, check your internet connection and Firestore security rules.
-          <br />You can try creating a new tournament if none exist or reloading.
         </p>
         <Button onClick={() => window.location.reload()} variant="destructive" className="mt-6">
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -256,9 +296,8 @@ export default function BracketPage() {
         <Info className="h-16 w-16 text-primary" />
         <h2 className="text-3xl font-headline text-primary mt-4">{activeTournament ? `Bracket for "${activeTournament.name}" is Empty` : "Tournament Bracket is Empty"}</h2>
         <p className="text-muted-foreground max-w-lg">
-          Matchup documents will appear here automatically in real-time as they are created.
-          {activeTournament?.id && <>Ensure data is being written to Firestore at: <code className="text-xs bg-muted p-1 rounded inline-block my-1">tournaments/{activeTournament.id}/rounds/[roundNum]/matches/[matchId]</code>.</>}
-          {!activeTournament && "No active tournament found. Consider creating a new tournament if none are set up."}
+          Matchup documents will appear here automatically.
+          {activeTournament?.id && <>Ensure data is written to: <code className="text-xs bg-muted p-1 rounded inline-block my-1">tournaments/{activeTournament.id}/rounds/[roundNum]/matches/[matchId]</code>.</>}
         </p>
         <Button onClick={() => window.location.reload()} variant="outline" className="mt-6">
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -303,8 +342,21 @@ export default function BracketPage() {
         </Alert>
       )}
       
-      {tournamentDisplayData && tournamentDisplayData.rounds.length > 0 && <BracketDisplay tournamentData={tournamentDisplayData} />}
+      {tournamentDisplayData && tournamentDisplayData.rounds.length > 0 && (
+        <BracketDisplay 
+          tournamentData={tournamentDisplayData} 
+          onMatchupClick={handleMatchupCardClick}
+        />
+      )}
+
+      <MatchDetailPanel 
+        isOpen={isMatchDetailPanelOpen} 
+        onOpenChange={setIsMatchDetailPanelOpen} 
+        matchup={selectedMatchupForPanel}
+        tournamentStartDate={activeTournament?.startDate || null}
+      />
     </div>
   );
 }
 
+    
