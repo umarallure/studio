@@ -51,7 +51,7 @@ export default function DashboardPage() {
     const todayStr = formatDate(new Date(), 'yyyy-MM-dd');
     const yesterdayStr = formatDate(subDays(new Date(), 1), 'yyyy-MM-dd');
 
-    console.log(`[DashboardPage] Preparing to fetch. Filter: ${filterName}, Today: ${todayStr}, Yesterday: ${yesterdayStr}`);
+    console.log('[DashboardPage] Preparing to fetch. Filter:', filterName, 'Today:', todayStr, 'Yesterday:', yesterdayStr);
 
     try {
       const [
@@ -123,13 +123,23 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast]); // Removed lastFetchedSubmissions from dependencies to prevent loops.
+  }, [toast]); 
 
   useEffect(() => {
-    if (isAuthLoading || !user) {
+    if (isAuthLoading) { 
       setIsLoadingMetrics(true); 
       return;
     }
+    if (!user) {
+        setIsLoadingMetrics(false);
+        return;
+    }
+
+    console.log('[DashboardPage] User details for fetching metrics:', {
+        role: user.role,
+        teamNameForFilter: user.teamNameForFilter,
+        currentAdminSelectedCenterId: adminSelectedCenterId
+    });
 
     let centerToLoad: AvailableCenter;
 
