@@ -91,23 +91,24 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     if (matchScheduledDates && matchScheduledDates.length > 0) {
       const validNonFutureScheduledDates = matchScheduledDates
         .map(dStr => parseISO(dStr)) 
-        .filter(d => isValid(d) && !isAfter(d, clientToday))
-        .sort((a, b) => b.getTime() - a.getTime()); 
+        .filter(d => isValid(d) && !isAfter(d, clientToday)) // Scheduled and not after client's today
+        .sort((a, b) => b.getTime() - a.getTime()); // Sort descending (most recent first)
   
       console.log(`[PanelEffect InitialDate] M:${matchup.id}. Client Today: ${format(clientToday, 'yyyy-MM-dd')}`);
       console.log(`[PanelEffect InitialDate] M:${matchup.id}. All fetched scheduled:`, matchScheduledDates.map(d => { const pd = parseISO(d); return isValid(pd) ? format(pd, 'yyyy-MM-dd') : 'Invalid Date';}));
-      console.log(`[PanelEffect InitialDate] M:${matchup.id}. Valid non-future scheduled:`, validNonFutureScheduledDates.map(d => format(d, 'yyyy-MM-dd')));
+      console.log(`[PanelEffect InitialDate] M:${matchup.id}. Valid non-future scheduled (past or present):`, validNonFutureScheduledDates.map(d => format(d, 'yyyy-MM-dd')));
 
       if (validNonFutureScheduledDates.some(d => isEqual(d, clientToday))) {
         newSelectedDateCandidate = clientToday;
-        console.log(`[PanelEffect InitialDate] M:${matchup.id}. Case 1: Today is valid scheduled. Set to: ${format(newSelectedDateCandidate, 'yyyy-MM-dd')}`);
+        console.log(`[PanelEffect InitialDate] M:${matchup.id}. Case 1: Today is valid & scheduled. Set to: ${format(newSelectedDateCandidate, 'yyyy-MM-dd')}`);
       } else if (validNonFutureScheduledDates.length > 0) {
-        newSelectedDateCandidate = validNonFutureScheduledDates[0]; 
+        newSelectedDateCandidate = validNonFutureScheduledDates[0]; // Latest past/present scheduled date
         console.log(`[PanelEffect InitialDate] M:${matchup.id}. Case 2: Today not valid/scheduled. Set to latest past/present scheduled: ${format(newSelectedDateCandidate, 'yyyy-MM-dd')}`);
       } else { 
+        // All scheduled dates are in the client's future
         const sortedFutureScheduledDates = matchScheduledDates.map(dStr => parseISO(dStr)).filter(isValid).sort((a, b) => a.getTime() - b.getTime());
         if (sortedFutureScheduledDates.length > 0) {
-          newSelectedDateCandidate = sortedFutureScheduledDates[0];
+          newSelectedDateCandidate = sortedFutureScheduledDates[0]; // Earliest future scheduled date
           console.log(`[PanelEffect InitialDate] M:${matchup.id}. Case 3: All scheduled are future (relative to client). Set to earliest scheduled: ${format(newSelectedDateCandidate, 'yyyy-MM-dd')}`);
         }
       }
@@ -116,7 +117,7 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     }
     
     if (!newSelectedDateCandidate || !isValid(newSelectedDateCandidate)) {
-        newSelectedDateCandidate = clientToday; 
+        newSelectedDateCandidate = clientToday; // Fallback to client's today if no suitable scheduled date found
         console.log(`[PanelEffect InitialDate] M:${matchup.id}. Fallback or invalid candidate. Set to client's today: ${format(newSelectedDateCandidate, 'yyyy-MM-dd')}`);
     }
 
@@ -127,7 +128,7 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     } else {
       console.log(`[PanelEffect InitialDate NoChange] M:${matchup.id}. selectedDateInternal already: ${format(selectedDateInternal, 'yyyy-MM-dd')}`);
     }
-  }, [matchScheduledDates, isFetchingScheduledDates, matchup]); // selectedDateInternal removed
+  }, [matchScheduledDates, isFetchingScheduledDates, matchup]);
 
 
   const fetchPanelData = useCallback(async () => {
@@ -189,33 +190,22 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
       console.log(`[PanelFetch FINALLY] M:${matchup.id} D:${formattedSelectedDate}. Setting isLoadingPanelData to false.`);
       setIsLoadingPanelData(false);
     }
-  }, [isOpen, matchup, tournamentId, formattedSelectedDate, toast]); 
-
-  const isSelectedDateFutureForClient = useMemo(() => {
-    const clientToday = startOfDay(new Date());
-    const isFuture = isAfter(startOfDay(selectedDateInternal), clientToday);
-    console.log(`[PanelMemo isSelectedDateFutureForClient] Date: ${format(selectedDateInternal, 'yyyy-MM-dd')} Client Today: ${format(clientToday, 'yyyy-MM-dd')} isFuture: ${isFuture}`);
-    return isFuture;
-  }, [selectedDateInternal]);
+  }, [isOpen, matchup, tournamentId, formattedSelectedDate, toast, isLoadingPanelData]); // Added isLoadingPanelData to deps for the guard
 
   useEffect(() => {
-    console.log(`[PanelEffect DataTrigger] M_ID:${matchup?.id}, isOpen:${isOpen}, tournamentId:${!!tournamentId}, roundId:${!!matchup?.roundId}, team1Valid:${matchup?.team1Name && matchup.team1Name.toLowerCase() !== "tbd"}, team2Valid:${matchup?.team2Name && matchup.team2Name.toLowerCase() !== "tbd"}, selDate:${formattedSelectedDate}, isClientFuture:${isSelectedDateFutureForClient}`);
+    console.log(`[PanelEffect DataTrigger] M_ID:${matchup?.id}, isOpen:${isOpen}, tournamentId:${!!tournamentId}, roundId:${!!matchup?.roundId}, team1Valid:${matchup?.team1Name && matchup.team1Name.toLowerCase() !== "tbd"}, team2Valid:${matchup?.team2Name && matchup.team2Name.toLowerCase() !== "tbd"}, selDate:${formattedSelectedDate}`);
     
     if (isOpen && matchup && tournamentId && matchup.roundId && 
         matchup.team1Name && matchup.team1Name.toLowerCase() !== "tbd" && 
         matchup.team2Name && matchup.team2Name.toLowerCase() !== "tbd") {
       
-      if (isSelectedDateFutureForClient) {
-        console.log(`[PanelEffect DataTrigger] Selected D:${formattedSelectedDate} for M:${matchup.id} is future relative to client. Clearing data, not fetching.`);
-        setPanelError(null); setMatchDailyResult(null); setTeam1Entries([]); setTeam2Entries([]);
-        if (isLoadingPanelData) setIsLoadingPanelData(false); 
-      } else {
-        console.log(`[PanelEffect DataTrigger] Conditions met. Calling fetchPanelData for M:${matchup.id} on D:${formattedSelectedDate}.`);
-        fetchPanelData();
-      }
+      // Always attempt to fetch data for a selected scheduled date.
+      // The UI will handle messages if no data exists for that date.
+      console.log(`[PanelEffect DataTrigger] Conditions met. Calling fetchPanelData for M:${matchup.id} on D:${formattedSelectedDate}.`);
+      fetchPanelData();
 
     } else if (isOpen && matchup) { 
-      console.log(`[PanelEffect DataTrigger] Conditions for full fetch NOT met. M:${matchup?.id}, D:${formattedSelectedDate}. Clearing data.`);
+      console.log(`[PanelEffect DataTrigger] Conditions for full fetch NOT met. M:${matchup?.id}, D:${formattedSelectedDate}. Clearing data or showing TBD message.`);
       if (matchup.team1Name?.toLowerCase() === "tbd" || matchup.team2Name?.toLowerCase() === "tbd") {
         setPanelError("Teams for this matchup are not yet determined.");
       } else {
@@ -224,7 +214,8 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
       setMatchDailyResult(null); setTeam1Entries([]); setTeam2Entries([]);
       if (isLoadingPanelData) setIsLoadingPanelData(false); 
     }
-  }, [isOpen, matchup, tournamentId, formattedSelectedDate, isSelectedDateFutureForClient, fetchPanelData, isLoadingPanelData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, matchup, tournamentId, formattedSelectedDate, fetchPanelData]); // isSelectedDateFutureForClient removed
 
 
   if (!matchup) {
@@ -247,8 +238,6 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     dayPerformanceSummary = panelError; 
   } else if (panelError) {
     dayPerformanceSummary = panelError; 
-  } else if (isSelectedDateFutureForClient) {
-    dayPerformanceSummary = "Data for future dates (relative to your system time) is not available.";
   } else if (seriesWinnerName && matchDailyResult) { 
      dayPerformanceSummary = `Match series concluded. Winner: ${seriesWinnerName}. Performance on ${displaySelectedDate} (${dailyMatchStatus || 'Status Unknown'}): `;
      if(dailyWinnerName) dayPerformanceSummary += `${dailyWinnerName} won.`; else if (dailyMatchStatus?.includes("Tie")) dayPerformanceSummary += `Tie.`; else dayPerformanceSummary += `Scores: ${team1Name} ${team1ScoreForDay} - ${team2Name} ${team2ScoreForDay}.`;
@@ -272,9 +261,6 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     const actualTeamName = teamDisplayName || "this team";
     if (isLoadingPanelData && !isFetchingScheduledDates) return <p className="text-sm text-muted-foreground italic">Loading entries for {actualTeamName}...</p>;
     
-    if (isSelectedDateFutureForClient) {
-      return <p className="text-sm text-muted-foreground italic">Entries for future dates are not shown.</p>;
-    }
     if (matchup.team1Name?.toLowerCase() === 'tbd' || matchup.team2Name?.toLowerCase() === 'tbd') {
          return <p className="text-sm text-muted-foreground italic">Team not determined, entries cannot be displayed.</p>;
     }
@@ -377,12 +363,12 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
                       const dateToCheck = startOfDay(date);
                       const dateString = format(dateToCheck, 'yyyy-MM-dd');
                       
-                      if (isFetchingScheduledDates || !matchScheduledDates) {
-                        console.log(`[CalendarDisabled] Date ${dateString}: Disabled because schedule fetching (${isFetchingScheduledDates}) or no schedule array. All sched: ${JSON.stringify(matchScheduledDates)}`);
+                      if (isFetchingScheduledDates) {
+                        console.log(`[CalendarDisabled] Date ${dateString}: Disabled because schedule fetching. All sched: ${JSON.stringify(matchScheduledDates)}`);
                         return true; 
                       }
-                      if (matchScheduledDates.length === 0) {
-                         console.log(`[CalendarDisabled] Date ${dateString}: Disabled because matchScheduledDates is empty. All sched: ${JSON.stringify(matchScheduledDates)}`);
+                      if (!matchScheduledDates || matchScheduledDates.length === 0) {
+                         console.log(`[CalendarDisabled] Date ${dateString}: Disabled because matchScheduledDates is null or empty. All sched: ${JSON.stringify(matchScheduledDates)}`);
                          return true;
                       }
 
@@ -391,16 +377,6 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
                         console.log(`[CalendarDisabled] Date ${dateString}: Disabled (not in [${matchScheduledDates.join(', ')}])`);
                         return true; 
                       }
-                      
-                      // Removed: isFutureForClient check for disabling.
-                      // The data fetching logic will handle whether to show data for "future" scheduled dates.
-                      // const clientToday = startOfDay(new Date());
-                      // const isFutureForClient = isAfter(dateToCheck, clientToday);
-                      // if (isFutureForClient) {
-                      //   console.log(`[CalendarDisabled] Date ${dateString}: Disabled (future for client: ${format(clientToday, 'yyyy-MM-dd')}).`);
-                      //   return true;
-                      // }
-
                       console.log(`[CalendarDisabled] Date ${dateString}: ENABLED. All sched: ${JSON.stringify(matchScheduledDates)}`);
                       return false;
                     }}
@@ -430,20 +406,7 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
               </div>
             )}
             
-            {!isLoadingPanelData && !isFetchingScheduledDates && !panelError && isSelectedDateFutureForClient && (
-               <div className="text-blue-600 dark:text-blue-400 p-4 bg-blue-100 dark:bg-blue-900/30 rounded-md flex items-center border border-blue-300 dark:border-blue-700">
-                 <Info className="h-5 w-5 mr-2 text-blue-500 dark:text-blue-400"/> Data for future dates (relative to your system time) is not available.
-               </div>
-            )}
-             {!isLoadingPanelData && !isFetchingScheduledDates && !panelError && !isSelectedDateFutureForClient && 
-              (team1Name?.toLowerCase() === 'tbd' || team2Name?.toLowerCase() === 'tbd') && (
-                 <div className="text-orange-600 dark:text-orange-400 p-4 bg-orange-100 dark:bg-orange-900/30 rounded-md flex items-center border border-orange-300 dark:border-orange-700">
-                    <Info className="h-5 w-5 mr-2 text-orange-500 dark:text-orange-400"/> Teams for this matchup are not yet determined. Daily stats will be shown once teams are set.
-                 </div>
-            )}
-
-
-            {!isLoadingPanelData && !isFetchingScheduledDates && !panelError && !isSelectedDateFutureForClient && 
+            {!isLoadingPanelData && !isFetchingScheduledDates && !panelError && 
              (team1Name && team1Name.toLowerCase() !== 'tbd' && team2Name && team2Name.toLowerCase() !== 'tbd') && (
               <>
                 <Card className="mb-4">
@@ -488,6 +451,12 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
                 </div>
               </>
             )}
+             {!isLoadingPanelData && !isFetchingScheduledDates && !panelError && 
+              (team1Name?.toLowerCase() === 'tbd' || team2Name?.toLowerCase() === 'tbd') && (
+                 <div className="text-orange-600 dark:text-orange-400 p-4 bg-orange-100 dark:bg-orange-900/30 rounded-md flex items-center border border-orange-300 dark:border-orange-700">
+                    <Info className="h-5 w-5 mr-2 text-orange-500 dark:text-orange-400"/> Teams for this matchup are not yet determined. Daily stats will be shown once teams are set.
+                 </div>
+            )}
           </div>
         </div>
 
@@ -500,6 +469,8 @@ export default function MatchDetailPanel({ isOpen, onOpenChange, matchup, tourna
     </Sheet>
   );
 }
+    
+
     
 
     
