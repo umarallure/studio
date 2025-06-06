@@ -1,19 +1,20 @@
 
-// types import is adjusted, but most mock data here for bracket is now obsolete
-// as data comes from Firestore via Apps Script.
-import type { CenterDashboardData } from './types'; 
-import { TrendingUp, TrendingDown, ShieldCheck, Target, Users } from 'lucide-react';
-
-// The initialTournamentRounds, createTeam, and initialMatchupsStructure are no longer
-// directly used by the bracket display as data is fetched from Firestore.
-// They are kept here for reference or if needed for other parts of the app,
-// but their structure does not match the new Firestore-driven bracket.
+import type { CenterDashboardData, TopAgentMetric } from './types';
+import { TrendingUp, TrendingDown, ShieldCheck, Target, Users, Award } from 'lucide-react';
 
 export const tournamentPrize = 'Grand Prize: Company-Wide Recognition and a Team Celebration Budget!';
 
-// Center Dashboard Mock Data can remain as is, as it's separate from the bracket logic.
+const defaultTopAgentMetric: TopAgentMetric = {
+  id: 'topAgent',
+  title: 'Top Agent (Last Month)',
+  agentName: 'Loading...',
+  submissionCount: 0,
+  icon: Award,
+  description: 'Based on submitted entries last month.',
+};
+
 export const mockCenterData1: CenterDashboardData = {
-  centerName: 'Team 1 View', // Updated name
+  centerName: 'Team 1 View',
   dailySales: {
     id: 'sales',
     title: 'Daily Submissions',
@@ -22,7 +23,7 @@ export const mockCenterData1: CenterDashboardData = {
     unit: 'units',
     trend: 'up',
     icon: TrendingUp,
-    description: 'Total submissions today for Team 1.', // Updated description
+    description: 'Total submissions today for Team 1.',
   },
   chargebackPercentage: {
     id: 'chargeback',
@@ -30,24 +31,30 @@ export const mockCenterData1: CenterDashboardData = {
     value: '3.5',
     previousValue: '4.1',
     unit: '%',
-    trend: 'down', 
+    trend: 'down',
     icon: ShieldCheck,
     description: 'Lower is better. Target < 5%.',
   },
   flowThroughRate: {
     id: 'flowThrough',
     title: 'Flow-Through Rate',
-    value: '85', 
+    value: '85',
     previousValue: '82',
     unit: '%',
     trend: 'up',
     icon: Target,
     description: 'Approved submissions / Total submissions. Higher is better.',
   },
+  topAgentLastMonth: { ...defaultTopAgentMetric, agentName: "Agent T1" },
+  entryStatusChartData: [ // Example Data
+    { name: 'Submitted', value: 70, fill: 'var(--chart-1)' },
+    { name: 'Approved', value: 20, fill: 'var(--chart-2)' },
+    { name: 'Pending', value: 10, fill: 'var(--chart-3)' },
+  ],
 };
 
 export const mockCenterData2: CenterDashboardData = {
-  centerName: 'Team 2 View', // Updated name
+  centerName: 'Team 2 View',
   dailySales: {
     id: 'sales',
     title: 'Daily Submissions',
@@ -56,7 +63,7 @@ export const mockCenterData2: CenterDashboardData = {
     unit: 'units',
     trend: 'down',
     icon: TrendingDown,
-    description: 'Total submissions today for Team 2.', // Updated description
+    description: 'Total submissions today for Team 2.',
   },
   chargebackPercentage: {
     id: 'chargeback',
@@ -64,7 +71,7 @@ export const mockCenterData2: CenterDashboardData = {
     value: '6.2',
     previousValue: '5.8',
     unit: '%',
-    trend: 'up', 
+    trend: 'up',
     icon: ShieldCheck,
     description: 'Lower is better. Target < 5%.',
   },
@@ -78,11 +85,18 @@ export const mockCenterData2: CenterDashboardData = {
     icon: Target,
     description: 'Approved submissions / Total submissions. Higher is better.',
   },
+  topAgentLastMonth: { ...defaultTopAgentMetric, agentName: "Agent T2" },
+  entryStatusChartData: [
+    { name: 'Submitted', value: 60, fill: 'var(--chart-1)' },
+    { name: 'Approved', value: 15, fill: 'var(--chart-2)' },
+    { name: 'Rejected', value: 5, fill: 'var(--chart-4)' },
+    { name: 'Pending', value: 20, fill: 'var(--chart-3)' },
+  ],
 };
 
 export const defaultCenterData: CenterDashboardData = {
   centerName: 'Your Center Dashboard',
-   dailySales: {
+  dailySales: {
     id: 'sales',
     title: 'Daily Submissions',
     value: 0,
@@ -112,4 +126,6 @@ export const defaultCenterData: CenterDashboardData = {
     icon: Target,
     description: 'Approved submissions / Total submissions. Higher is better.',
   },
-}
+  topAgentLastMonth: defaultTopAgentMetric,
+  entryStatusChartData: [],
+};

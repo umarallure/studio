@@ -50,11 +50,28 @@ export interface CenterMetric {
   description?: string;
 }
 
+export interface TopAgentMetric {
+  id: string;
+  title: string;
+  agentName: string | null;
+  submissionCount: number;
+  icon?: React.ElementType;
+  description?: string; // e.g. "Submissions last month"
+}
+
+export interface ChartSegment {
+  name: string; // e.g., Status name or ProductType name
+  value: number; // Count for this segment
+  fill: string; // CSS variable for color e.g., 'var(--chart-1)'
+}
+
 export interface CenterDashboardData {
   centerName: string;
   dailySales: CenterMetric;
   chargebackPercentage: CenterMetric;
   flowThroughRate: CenterMetric;
+  topAgentLastMonth?: TopAgentMetric; // Optional for now
+  entryStatusChartData?: ChartSegment[]; // Optional for now
 }
 
 // New type for data from Sheet1Rows collection
@@ -82,19 +99,31 @@ export interface TournamentSettings {
   status?: string; // e.g., "Scheduled", "Ongoing", "Completed"
 }
 
-// Type for Genkit flow to get daily submissions
-// Input for the Genkit flow to get daily submissions
+// Genkit flow input/output types
 export type DailySubmissionsInput = {
   targetDate: string; // YYYY-MM-DD
   leadVenderFilter?: string | null;
 };
 
-// Output from the Genkit flow
 export type DailySubmissionsOutput = {
   submissionCount: number;
   processedDate: string;
   filterApplied: string | null | undefined;
 };
+
+export type TopAgentLastMonthInput = {
+  leadVenderFilter: string | null;
+};
+export type TopAgentLastMonthOutput = {
+  agentName: string | null;
+  submissionCount: number;
+};
+
+export type EntryStatsByStatusForChartInput = {
+  leadVenderFilter: string | null;
+  daysToCover: number;
+};
+export type EntryStatsByStatusForChartOutput = ChartSegment[];
 
 
 // User type for AuthContext
@@ -103,5 +132,6 @@ export interface AppUser {
   email: string | null;
   username: string; // Original username entered at login
   role: 'admin' | 'teamMember' | null;
-  teamNameForFilter: string | null; // e.g., "Alpha Team", "Bravo Team", or null for admin
+  teamNameForFilter: string | null; // e.g., "Team 1", "Team 2", or null for admin
 }
+
