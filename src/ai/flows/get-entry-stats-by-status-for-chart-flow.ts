@@ -13,7 +13,7 @@ import {z} from 'genkit';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, type QueryConstraint } from 'firebase/firestore';
 import { format as formatDate, subDays, startOfDay, endOfDay } from 'date-fns';
-import type { SheetRow, ChartSegment } from '@/lib/types'; // Assuming ChartSegment is defined
+import type { ChartSegment } from '@/lib/types'; // Assuming ChartSegment is defined
 import { mapDocToSheetRow } from '@/lib/tournament-config';
 
 const EntryStatsByStatusForChartInputSchema = z.object({
@@ -22,7 +22,6 @@ const EntryStatsByStatusForChartInputSchema = z.object({
 });
 export type EntryStatsByStatusForChartInput = z.infer<typeof EntryStatsByStatusForChartInputSchema>;
 
-// Output schema is an array of ChartSegment
 const EntryStatsByStatusForChartOutputSchema = z.array(
   z.object({
     name: z.string().describe("The status name."),
@@ -40,18 +39,16 @@ export async function getEntryStatsByStatusForChart(input: EntryStatsByStatusFor
   return result;
 }
 
-// Predefined colors for chart segments, maps to globals.css chart variables
 const STATUS_COLORS: Record<string, string> = {
-  default: 'var(--muted)', // Fallback color
+  default: 'var(--muted)', 
   Submitted: 'var(--chart-1)',
   Approved: 'var(--chart-2)',
   Pending: 'var(--chart-3)',
   Rejected: 'var(--chart-4)',
   Cancelled: 'var(--chart-5)',
-  // Add more statuses and their corresponding chart variables if needed
 };
 let chartColorIndex = 1; 
-const MAX_CHART_COLORS = 5; // Based on --chart-1 to --chart-5
+const MAX_CHART_COLORS = 5; 
 
 function getNextColor(statusName: string): string {
     if (STATUS_COLORS[statusName]) {
@@ -60,9 +57,8 @@ function getNextColor(statusName: string): string {
     const color = `var(--chart-${chartColorIndex})`;
     chartColorIndex++;
     if (chartColorIndex > MAX_CHART_COLORS) {
-        chartColorIndex = 1; // Cycle through colors
+        chartColorIndex = 1; 
     }
-    // Store it for consistency if this status appears again (though unlikely for one call)
     STATUS_COLORS[statusName] = color; 
     return color;
 }
@@ -76,10 +72,10 @@ const getEntryStatsByStatusForChartFlow = ai.defineFlow(
   },
   async (input: EntryStatsByStatusForChartInput): Promise<EntryStatsByStatusForChartOutput> => {
     const { leadVenderFilter, daysToCover } = input;
-    chartColorIndex = 1; // Reset color index for each flow run
+    chartColorIndex = 1; 
 
-    const endDate = endOfDay(new Date()); // Today
-    const startDate = startOfDay(subDays(endDate, daysToCover -1)); // Go back specified days
+    const endDate = endOfDay(new Date()); 
+    const startDate = startOfDay(subDays(endDate, daysToCover -1)); 
 
     const startDateStr = formatDate(startDate, 'yyyy-MM-dd');
     const endDateStr = formatDate(endDate, 'yyyy-MM-dd');
@@ -91,7 +87,6 @@ const getEntryStatsByStatusForChartFlow = ai.defineFlow(
       const queryConstraints: QueryConstraint[] = [
         where("Date", ">=", startDateStr),
         where("Date", "<=", endDateStr),
-        // No filter on Status here, we want to count all of them
       ];
 
       if (leadVenderFilter) {
@@ -122,7 +117,7 @@ const getEntryStatsByStatusForChartFlow = ai.defineFlow(
         name: statusName,
         value: count,
         fill: getNextColor(statusName),
-      })).sort((a,b) => b.value - a.value); // Sort by count descending for better chart display
+      })).sort((a,b) => b.value - a.value); 
 
       console.log('[Genkit Flow Internal - ChartStats] Aggregated status counts:', chartData);
       return chartData;

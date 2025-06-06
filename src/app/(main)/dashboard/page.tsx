@@ -51,6 +51,8 @@ export default function DashboardPage() {
     const todayStr = formatDate(new Date(), 'yyyy-MM-dd');
     const yesterdayStr = formatDate(subDays(new Date(), 1), 'yyyy-MM-dd');
 
+    console.log(`[DashboardPage] Preparing to fetch. Filter: ${filterName}, Today: ${todayStr}, Yesterday: ${yesterdayStr}`);
+
     try {
       const [
         dailySubmissionsResult,
@@ -96,7 +98,7 @@ export default function DashboardPage() {
         },
       };
       setDisplayedDashboardData(updatedData); 
-      console.log('[DashboardPage] Successfully updated UI data for:', uiCenterName);
+      console.log('[DashboardPage] Successfully updated UI data for:', uiCenterName, 'New daily sales value:', todayCount);
 
     } catch (error) {
       console.error("[DashboardPage] Failed to fetch dynamic dashboard metrics:", error);
@@ -121,7 +123,7 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast]); // Removed lastFetchedSubmissions from dependencies as per previous optimization
+  }, [toast]); // Removed lastFetchedSubmissions from dependencies to prevent loops.
 
   useEffect(() => {
     if (isAuthLoading || !user) {
