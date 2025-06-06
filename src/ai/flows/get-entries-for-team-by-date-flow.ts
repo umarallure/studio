@@ -39,9 +39,9 @@ export type GetEntriesForTeamByDateOutput = z.infer<typeof GetEntriesForTeamByDa
 
 
 export async function getEntriesForTeamByDate(input: GetEntriesForTeamByDateInput): Promise<GetEntriesForTeamByDateOutput> {
-  console.log('[Genkit Flow] getEntriesForTeamByDate called with input:', input);
+  console.log('[Genkit Flow GetEntriesForTeamByDate] Called with input:', JSON.stringify(input));
   const result = await getEntriesForTeamByDateFlow(input);
-  console.log('[Genkit Flow] getEntriesForTeamByDate result count:', result.length);
+  console.log('[Genkit Flow GetEntriesForTeamByDate] Result count:', result.length, 'First entry (if any):', result.length > 0 ? JSON.stringify(result[0]) : 'N/A');
   return result;
 }
 
@@ -53,7 +53,7 @@ const getEntriesForTeamByDateFlow = ai.defineFlow(
   },
   async (input: GetEntriesForTeamByDateInput): Promise<GetEntriesForTeamByDateOutput> => {
     const { teamName, targetDate } = input;
-    console.log(`[Genkit Flow Internal - TeamEntries] Processing for team: ${teamName}, date: ${targetDate}`);
+    console.log(`[Genkit Flow Internal - TeamEntries] Processing for team: "${teamName}", date: "${targetDate}"`);
 
     const entries: GetEntriesForTeamByDateOutput = [];
 
@@ -62,28 +62,31 @@ const getEntriesForTeamByDateFlow = ai.defineFlow(
       
       const queryConstraints: QueryConstraint[] = [
         where("Date", "==", targetDate),
-        where("Lead Vender", "==", teamName), // Uses "Lead Vender" with a space
+        where("Lead Vender", "==", teamName), 
         where("Status", "==", "Submitted")
       ];
       
+      console.log(`[Genkit Flow Internal - TeamEntries] Query constraints:`, JSON.stringify(queryConstraints.map(qc => ({_op: (qc as any)._op, _field: (qc as any)._fieldPath.segments.join('.'), _value: (qc as any)._value }))));
       const q = query(sheetRowsCollectionRef, ...queryConstraints);
       const querySnapshot = await getDocs(q);
       
       querySnapshot.forEach(doc => {
+        // console.log(`[Genkit Flow Internal - TeamEntries] Processing doc ID: ${doc.id}, Data:`, JSON.stringify(doc.data()));
         const rowData = mapDocToSheetRow(doc.id, doc.data());
         if (rowData) {
-          // Ensure the mapped data conforms to SheetRowSchema for type safety if needed,
-          // but mapDocToSheetRow should already produce compatible objects.
-          entries.push(rowData as any); // Cast as any if mapDocToSheetRow doesn't return strictly Zod-inferred type
+          entries.push(rowData as any); 
+        } else {
+           console.warn(`[Genkit Flow Internal - TeamEntries] mapDocToSheetRow returned null for doc ID: ${doc.id}`);
         }
       });
       
-      console.log(`[Genkit Flow Internal - TeamEntries] Query returned ${entries.length} documents for team: ${teamName}, date: ${targetDate}.`);
+      console.log(`[Genkit Flow Internal - TeamEntries] Query returned ${entries.length} documents for team: "${teamName}", date: "${targetDate}".`);
       return entries;
 
     } catch (error) {
-      console.error("[Genkit Flow Internal - TeamEntries] Error in getEntriesForTeamByDateFlow:", error);
+      console.error(`[Genkit Flow Internal - TeamEntries] Error in getEntriesForTeamByDateFlow for team "${teamName}", date "${targetDate}":`, error);
       return []; // Return empty array on error
     }
   }
 );
+

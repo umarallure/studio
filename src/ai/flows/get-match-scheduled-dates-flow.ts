@@ -25,9 +25,9 @@ export type GetMatchScheduledDatesOutput = z.infer<typeof GetMatchScheduledDates
 
 
 export async function getMatchScheduledDates(input: GetMatchScheduledDatesInput): Promise<GetMatchScheduledDatesOutput> {
-  console.log('[Genkit Flow] getMatchScheduledDates called with input:', input);
+  console.log('[Genkit Flow GetMatchScheduledDates] Called with input:', JSON.stringify(input));
   const result = await getMatchScheduledDatesFlow(input);
-  console.log('[Genkit Flow] getMatchScheduledDates result (dates):', result);
+  console.log('[Genkit Flow GetMatchScheduledDates] Result (dates):', JSON.stringify(result));
   return result;
 }
 
@@ -40,18 +40,11 @@ const getMatchScheduledDatesFlow = ai.defineFlow(
   async (input: GetMatchScheduledDatesInput): Promise<GetMatchScheduledDatesOutput> => {
     const { tournamentId, roundNum, matchId } = input;
     const dates: string[] = [];
+    console.log(`[Genkit Flow Internal - MatchScheduledDates] Processing for T:${tournamentId}, R:${roundNum}, M:${matchId}`);
 
     try {
-      const dailyResultsCollectionRef = collection(
-        db,
-        "tournaments",
-        tournamentId,
-        "rounds",
-        roundNum,
-        'matches',
-        matchId,
-        'dailyResults'
-      );
+      const dailyResultsCollectionPath = `tournaments/${tournamentId}/rounds/${roundNum}/matches/${matchId}/dailyResults`;
+      const dailyResultsCollectionRef = collection(db, dailyResultsCollectionPath);
       
       // Order by document ID (__name__) which is the date string YYYY-MM-DD
       const q = query(dailyResultsCollectionRef, orderBy('__name__'));
@@ -61,8 +54,8 @@ const getMatchScheduledDatesFlow = ai.defineFlow(
         dates.push(doc.id); // The document ID is the date string
       });
       
-      console.log(`[Genkit Flow Internal - MatchScheduledDates] Found ${dates.length} scheduled dates for T:${tournamentId}, R:${roundNum}, M:${matchId}. Dates: ${dates.join(', ')}`);
-      return dates;
+      console.log(`[Genkit Flow Internal - MatchScheduledDates] Found ${dates.length} scheduled dates for path ${dailyResultsCollectionPath}. Dates: ${dates.join(', ')}`);
+      return dates.sort(); // Ensure chronological sort just in case Firestore __name__ order has nuances
 
     } catch (error) {
       console.error(`[Genkit Flow Internal - MatchScheduledDates] Error for T:${tournamentId}, R:${roundNum}, M:${matchId}:`, error);
@@ -70,3 +63,4 @@ const getMatchScheduledDatesFlow = ai.defineFlow(
     }
   }
 );
+
