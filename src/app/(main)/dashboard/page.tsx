@@ -1,3 +1,4 @@
+
 "use client";
 
 import CenterDashboardDisplay from '@/components/dashboard/CenterDashboardDisplay';
@@ -21,9 +22,10 @@ interface AvailableCenter {
 // Team members will have their view determined by their user.teamNameForFilter
 const availableCentersForAdmin: AvailableCenter[] = [
   { id: 'all', name: 'All Teams (Admin View)', baseMockData: defaultCenterData, leadVenderFilterName: null },
-  { id: 'alpha', name: 'Alpha Ops HQ', baseMockData: mockCenterData1, leadVenderFilterName: 'Alpha Team' },
-  { id: 'bravo', name: 'Bravo Solutions Hub', baseMockData: mockCenterData2, leadVenderFilterName: 'Bravo Team' },
+  { id: 'team1_view', name: 'Team 1 View', baseMockData: mockCenterData1, leadVenderFilterName: 'Team 1' },
+  { id: 'team2_view', name: 'Team 2 View', baseMockData: mockCenterData2, leadVenderFilterName: 'Team 2' },
   // Add other specific teams here if admins need to select them individually
+  // e.g., { id: 'team3_view', name: 'Team 3 View', baseMockData: defaultCenterData, leadVenderFilterName: 'Team 3' },
 ];
 
 export default function DashboardPage() {
@@ -99,7 +101,7 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast]); // lastFetchedSubmissions removed to prevent loops
+  }, [toast]);
 
   // Effect to determine which data to load based on user role and selection
   useEffect(() => {
@@ -110,10 +112,14 @@ export default function DashboardPage() {
       fetchAndDisplayMetrics(selectedAdminOption.leadVenderFilterName, selectedAdminOption.baseMockData, selectedAdminOption.name);
     } else if (user.role === 'teamMember') {
       if (user.teamNameForFilter) {
-        // Try to find a matching mock data config, otherwise use default
+        // Try to find a matching mock data config for the specific team member's view.
+        // For dashboard purposes, a team member often has a standard dashboard structure,
+        // so we might use a default or a specific team's mock data as a base.
+        // Here, we'll try to find a config from 'availableCentersForAdmin' that matches the team filter,
+        // or fall back to default.
         const teamConfig = availableCentersForAdmin.find(c => c.leadVenderFilterName === user.teamNameForFilter);
         const baseData = teamConfig ? teamConfig.baseMockData : defaultCenterData;
-        const displayName = teamConfig ? teamConfig.name : user.teamNameForFilter; // Use configured name or just team filter name
+        const displayName = user.teamNameForFilter; // Display their actual team name
         fetchAndDisplayMetrics(user.teamNameForFilter, baseData, displayName);
       } else {
         // Team member with no specific teamNameForFilter - show default/all (or could be an error/restricted view)
@@ -125,7 +131,7 @@ export default function DashboardPage() {
         });
       }
     }
-  }, [user, isAuthLoading, adminSelectedCenterId, fetchAndDisplayMetrics]);
+  }, [user, isAuthLoading, adminSelectedCenterId, fetchAndDisplayMetrics, toast]);
 
 
   const handleAdminCenterChange = (newCenterId: string) => {

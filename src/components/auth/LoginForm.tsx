@@ -33,32 +33,22 @@ export default function LoginForm() {
     if (lowerUsername === 'admin') {
       role = 'admin';
       teamNameForFilter = null;
-    } else if (lowerUsername === 'alpha') {
-      role = 'teamMember';
-      teamNameForFilter = 'Alpha Team'; // Must match LeadVender in Sheet1Rows
-    } else if (lowerUsername === 'bravo') {
-      role = 'teamMember';
-      teamNameForFilter = 'Bravo Team'; // Must match LeadVender in Sheet1Rows
-    } else if (lowerUsername.startsWith('team')) {
-        // For generic "teamX" users, e.g. team1, team2, etc.
-        // Assumes LeadVender in sheet might be "Team 1", "Team 2"
-        const teamNumber = lowerUsername.replace('team', '');
-        if (teamNumber && !isNaN(parseInt(teamNumber))) {
-            teamNameForFilter = `Team ${teamNumber}`;
+    } else if (lowerUsername.startsWith('team') && lowerUsername.endsWith('user')) {
+        // For "teamXuser" users, e.g. team1user, team2user, team16user
+        const teamNumberMatch = lowerUsername.match(/^team(\d+)user$/);
+        if (teamNumberMatch && teamNumberMatch[1]) {
+            const teamNumber = teamNumberMatch[1];
+            teamNameForFilter = `Team ${teamNumber}`; // e.g., "Team 1", "Team 16"
+            role = 'teamMember';
         } else {
-            // Default for other "team" prefixed users if parsing fails
-            teamNameForFilter = "Default Team"; // Or handle as error
+            // Fallback for non-matching "team...user" pattern
+            setError('Invalid team user format. Expected "teamXuser" e.g. "team1user".');
+            return;
         }
     } else {
-      // Default for any other user: treat as a team member,
-      // but without a specific team filter unless derived.
-      // For this example, let's assign them a generic team or no team for filtering
-      // This part would need robust logic based on your actual team names and user provisioning
-      role = 'teamMember';
-      teamNameForFilter = null; // Or a default team name if applicable
-      // Alternatively, you could prevent login if username doesn't match known pattern
-      // setError('Unknown user or team. Please contact administrator.');
-      // return;
+      // Default for any other user: could be an error or a generic role
+      setError(`Unknown username pattern: ${username}. Please use 'admin' or 'teamXuser'.`);
+      return;
     }
 
     try {
@@ -95,7 +85,7 @@ export default function LoginForm() {
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="e.g., admin, alpha, bravo"
+          placeholder="e.g., admin, team1user"
           required
           className="bg-input"
           disabled={isLoading}
@@ -127,7 +117,7 @@ export default function LoginForm() {
         Sign In
       </Button>
        <p className="text-xs text-muted-foreground text-center">
-        Test users: admin, alpha, bravo (pw: password123)
+        Test users: admin, team1user, team2user (pw: password123)
       </p>
     </form>
   );

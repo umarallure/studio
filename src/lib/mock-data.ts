@@ -13,7 +13,7 @@ export const tournamentPrize = 'Grand Prize: Company-Wide Recognition and a Team
 
 // Center Dashboard Mock Data can remain as is, as it's separate from the bracket logic.
 export const mockCenterData1: CenterDashboardData = {
-  centerName: 'Alpha Ops HQ',
+  centerName: 'Team 1 View', // Updated name
   dailySales: {
     id: 'sales',
     title: 'Daily Submissions',
@@ -22,7 +22,7 @@ export const mockCenterData1: CenterDashboardData = {
     unit: 'units',
     trend: 'up',
     icon: TrendingUp,
-    description: 'Total submissions today.',
+    description: 'Total submissions today for Team 1.', // Updated description
   },
   chargebackPercentage: {
     id: 'chargeback',
@@ -47,7 +47,7 @@ export const mockCenterData1: CenterDashboardData = {
 };
 
 export const mockCenterData2: CenterDashboardData = {
-  centerName: 'Bravo Solutions Hub',
+  centerName: 'Team 2 View', // Updated name
   dailySales: {
     id: 'sales',
     title: 'Daily Submissions',
@@ -56,7 +56,7 @@ export const mockCenterData2: CenterDashboardData = {
     unit: 'units',
     trend: 'down',
     icon: TrendingDown,
-    description: 'Total submissions today.',
+    description: 'Total submissions today for Team 2.', // Updated description
   },
   chargebackPercentage: {
     id: 'chargeback',
