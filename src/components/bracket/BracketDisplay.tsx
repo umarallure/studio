@@ -1,14 +1,15 @@
 
 "use client";
-import type { TournamentData, Round as RoundType } from '@/lib/types';
+import type { TournamentData, Round as RoundType, Matchup as MatchupType } from '@/lib/types';
 import RoundColumn from './RoundColumn';
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 interface BracketDisplayProps {
   tournamentData: TournamentData;
+  onMatchupClick?: (matchup: MatchupType) => void;
 }
 
-export default function BracketDisplay({ tournamentData }: BracketDisplayProps) {
+export default function BracketDisplay({ tournamentData, onMatchupClick }: BracketDisplayProps) {
   if (!tournamentData || !tournamentData.rounds) {
     return <p>No tournament data available.</p>;
   }
@@ -22,6 +23,7 @@ export default function BracketDisplay({ tournamentData }: BracketDisplayProps) 
               key={round.id} 
               round={round} 
               isLastRound={index === tournamentData.rounds.length - 1}
+              onMatchupClick={onMatchupClick}
             />
           ))}
         </div>

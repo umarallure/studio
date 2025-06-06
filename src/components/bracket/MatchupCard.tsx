@@ -1,23 +1,20 @@
 
 "use client";
-import type { Matchup } from '@/lib/types'; // Using the new Matchup type
+import type { Matchup } from '@/lib/types';
 import TeamDisplay from './TeamDisplay';
 import { Card, CardContent } from '@/components/ui/card';
 import { Swords, CheckCircle2 } from 'lucide-react';
 
 interface MatchupCardProps {
   matchup: Matchup;
+  onClick?: (matchup: Matchup) => void;
 }
 
-export default function MatchupCard({ matchup }: MatchupCardProps) {
-  // seriesWinnerName indicates the team that won 3 daily matchups
+export default function MatchupCard({ matchup, onClick }: MatchupCardProps) {
   const seriesConcluded = !!matchup.seriesWinnerName;
-  
-  // Determine if team1 or team2 is the series winner
   const isTeam1SeriesWinner = seriesConcluded && matchup.team1Name === matchup.seriesWinnerName;
   const isTeam2SeriesWinner = seriesConcluded && matchup.team2Name === matchup.seriesWinnerName;
 
-  // Logic for "Awaiting team"
   const team1Awaited = !matchup.team1Name || matchup.team1Name.toLowerCase() === "tbd";
   const team2Awaited = !matchup.team2Name || matchup.team2Name.toLowerCase() === "tbd";
   let awaitingText = "";
@@ -29,9 +26,14 @@ export default function MatchupCard({ matchup }: MatchupCardProps) {
     awaitingText = "Awaiting team 2";
   }
 
+  const canOpenDetails = onClick && matchup.team1Name && matchup.team1Name.toLowerCase() !== "tbd" && matchup.team2Name && matchup.team2Name.toLowerCase() !== "tbd";
 
   return (
-    <Card className={`overflow-hidden shadow-md transition-all duration-300 ease-in-out hover:shadow-xl ${seriesConcluded ? 'border-accent' : 'border-border'}`}>
+    <Card 
+      className={`overflow-hidden shadow-md transition-all duration-300 ease-in-out ${seriesConcluded ? 'border-accent' : 'border-border'} ${canOpenDetails ? 'cursor-pointer hover:shadow-xl hover:border-primary/50' : ''}`}
+      onClick={canOpenDetails ? () => onClick?.(matchup) : undefined}
+      title={canOpenDetails ? "Click to see match details" : "Match details available when both teams are set"}
+    >
       <CardContent className="p-3 sm:p-4">
         <div className="flex flex-col space-y-2">
           <TeamDisplay 
@@ -44,9 +46,6 @@ export default function MatchupCard({ matchup }: MatchupCardProps) {
           <div className="flex items-center justify-center my-1 text-muted-foreground">
             <Swords className="h-4 w-4 text-primary/70" />
             <span className="mx-2 text-xs font-semibold">VS</span>
-            {/* The "Games Played" concept from old mock data (best of 5 series)
-                is replaced by daily wins. Apps Script advances on 3 daily wins.
-                We can show total daily wins here. */}
             <span className="text-xs">(First to 3 Daily Wins)</span>
           </div>
           

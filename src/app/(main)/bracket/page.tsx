@@ -47,6 +47,8 @@ export default function BracketPage() {
 
   const handleMatchupCardClick = useCallback((matchup: MatchupType) => {
     console.log("[BracketPage] handleMatchupCardClick triggered for matchup:", matchup.id);
+    // Condition for opening panel is already handled in MatchupCard's onClick,
+    // but a safety check here is fine or can be simplified if desired.
     if (!matchup.team1Name || matchup.team1Name.toLowerCase() === "tbd" || 
         !matchup.team2Name || matchup.team2Name.toLowerCase() === "tbd") {
       toast({
@@ -54,7 +56,7 @@ export default function BracketPage() {
         description: "Detailed stats are available once both teams are determined.",
         variant: "default",
       });
-      console.log("[BracketPage] Matchup not ready for details panel.");
+      console.log("[BracketPage] Matchup not ready for details panel (handler check).");
       return;
     }
     setSelectedMatchupForPanel(matchup);
@@ -104,15 +106,15 @@ export default function BracketPage() {
 
   useEffect(() => {
     if (!activeTournament || !activeTournament.id || typeof activeTournament.numberOfRounds !== 'number' || activeTournament.numberOfRounds < 0) {
-       if (!criticalError) { // Only set loading false if no critical error already set by first effect
+       if (!criticalError) { 
             console.log("[BracketPage Effect 2] Bailing out: Active tournament is null or invalid. Current isLoading:", isLoading);
-            if (isLoading) setIsLoading(false); // Ensure loading stops if we bail here.
+            if (isLoading) setIsLoading(false); 
        }
       return;
     }
     
     console.log(`[BracketPage Effect 2] Active tournament found: "${activeTournament.name}". Preparing to load bracket data. Current isLoading: ${isLoading}`);
-    if(!isLoading) setIsLoading(true); // Set loading true specifically for bracket data loading phase if not already.
+    if(!isLoading) setIsLoading(true); 
     setCriticalError(null); 
     setTournamentDisplayData(null); 
 
@@ -135,19 +137,20 @@ export default function BracketPage() {
 
     const unsubscribes: (() => void)[] = [];
     let roundsDataCollector: { [roundId: string]: MatchupType[] } = {};
-    let roundsProcessedCount = 0; // Counter for initial data load or error per round
+    let roundsProcessedCount = 0; 
     const totalListenersExpected = activeTournament.numberOfRounds;
     const currentRoundNames = getRoundNames(activeTournament.numberOfRounds);
+    const initiallyProcessedRounds = new Set<string>(); // To track initial load per round listener
 
     console.log(`[BracketPage Effect 2] Expecting ${totalListenersExpected} rounds for "${activeTournament.name}".`);
 
     const checkAllInitialLoadsComplete = () => {
       roundsProcessedCount++;
-      console.log(`[BracketPage Effect 2] Round processed (${roundsProcessedCount}/${totalListenersExpected}).`);
+      console.log(`[BracketPage Effect 2] Round processed initial data/error (${roundsProcessedCount}/${totalListenersExpected}).`);
       if (roundsProcessedCount >= totalListenersExpected) {
         console.log(`[BracketPage Effect 2] All ${totalListenersExpected} rounds processed their initial data/error. Setting isLoading to false.`);
         setIsLoading(false);
-        clearTimeout(loadingTimeout); // Clear the safety timeout
+        clearTimeout(loadingTimeout); 
       }
     };
 
@@ -170,7 +173,7 @@ export default function BracketPage() {
         roundsDataCollector[roundId] = matchupsForRound;
 
         const newRounds: Round[] = Object.keys(roundsDataCollector)
-          .filter(rId => !isNaN(parseInt(rId)))
+          .filter(rId => /^\d+$/.test(rId)) // Ensure rId is purely numeric (e.g. "1", "2", not "1_processed_initial")
           .map(rId => ({
             id: rId,
             name: currentRoundNames[rId] || `Round ${rId}`,
@@ -196,12 +199,11 @@ export default function BracketPage() {
                 prize: tournamentPrize 
             });
         }
-        // Call only after the first snapshot for this round to count towards initial load
-        if (roundsProcessedCount < totalListenersExpected && !Object.keys(roundsDataCollector).includes(roundId + "_processed_initial")) {
-            roundsDataCollector[roundId + "_processed_initial"] = []; // Mark as processed for initial load count
+        
+        if (!initiallyProcessedRounds.has(roundId)) {
+            initiallyProcessedRounds.add(roundId);
             checkAllInitialLoadsComplete();
         }
-
 
       }, (error) => {
         console.error(`[BracketPage Effect 2] Error fetching matchups for tournament ${activeTournament.id}, round ${roundId}:`, error);
@@ -211,9 +213,9 @@ export default function BracketPage() {
           variant: "destructive",
         });
         setCriticalError(prev => prev || `Failed to load data for Round ${roundId} of tournament ${activeTournament.name}.`);
-        // Call even on error to count towards initial load attempt
-        if (roundsProcessedCount < totalListenersExpected && !Object.keys(roundsDataCollector).includes(roundId + "_processed_initial")) {
-             roundsDataCollector[roundId + "_processed_initial"] = [];
+        
+        if (!initiallyProcessedRounds.has(roundId)) {
+             initiallyProcessedRounds.add(roundId);
             checkAllInitialLoadsComplete();
         }
       });
@@ -221,10 +223,10 @@ export default function BracketPage() {
     }
 
     const loadingTimeout = setTimeout(() => {
-        if (isLoading) { // Check if still loading after timeout
+        if (isLoading) { 
             console.warn(`[BracketPage Effect 2] Loading timeout after 10s for "${activeTournament?.name}". Processed ${roundsProcessedCount}/${totalListenersExpected} rounds.`);
             setIsLoading(false); 
-            if (!criticalError && (!tournamentDisplayData || Object.keys(roundsDataCollector).length === 0) && activeTournament) {
+            if (!criticalError && (!tournamentDisplayData || Object.keys(roundsDataCollector).filter(k => /^\d+$/.test(k)).length === 0) && activeTournament) {
                 setCriticalError(`Loading tournament data for "${activeTournament.name}" timed out.`);
                 toast({
                     title: "Loading Timeout",
@@ -239,14 +241,14 @@ export default function BracketPage() {
                 });
             }
         }
-    }, 10000); // Reduced timeout
+    }, 10000); 
 
     return () => {
       console.log("[BracketPage Effect 2] Cleanup: Unsubscribing from Firestore listeners and clearing timeout.");
       unsubscribes.forEach(unsub => unsub());
       clearTimeout(loadingTimeout);
     };
-  }, [activeTournament, toast]); // Removed isLoading from here
+  }, [activeTournament, toast]);
 
   const confirmLiveUpdates = () => {
     toast({
@@ -358,5 +360,3 @@ export default function BracketPage() {
     </div>
   );
 }
-
-    

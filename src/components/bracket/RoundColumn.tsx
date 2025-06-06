@@ -1,15 +1,16 @@
 
 "use client";
-import type { Round } from '@/lib/types';
+import type { Round, Matchup as MatchupType } from '@/lib/types';
 import MatchupCard from './MatchupCard';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 interface RoundColumnProps {
   round: Round;
   isLastRound: boolean;
+  onMatchupClick?: (matchup: MatchupType) => void;
 }
 
-export default function RoundColumn({ round, isLastRound }: RoundColumnProps) {
+export default function RoundColumn({ round, isLastRound, onMatchupClick }: RoundColumnProps) {
   const columnWidth = isLastRound ? "min-w-[320px] sm:min-w-[380px]" : "min-w-[300px] sm:min-w-[350px]";
 
   return (
@@ -22,7 +23,11 @@ export default function RoundColumn({ round, isLastRound }: RoundColumnProps) {
       <CardContent className="p-0 space-y-4">
         {round.matchups.length > 0 ? (
           round.matchups.map((matchup) => (
-            <MatchupCard key={matchup.id} matchup={matchup} />
+            <MatchupCard 
+              key={matchup.id} 
+              matchup={matchup}
+              onClick={onMatchupClick} 
+            />
           ))
         ) : (
           <Card className="p-4 text-center text-muted-foreground bg-muted/50">
