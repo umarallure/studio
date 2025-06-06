@@ -2,14 +2,14 @@
 "use client";
 
 import CenterDashboardDisplay from '@/components/dashboard/CenterDashboardDisplay';
-import EntryStatusChart from '@/components/dashboard/EntryStatusChart';
+// import EntryStatusChart from '@/components/dashboard/EntryStatusChart'; // Removed
 import { mockCenterData1, mockCenterData2, defaultCenterData, type CenterDashboardData, type TopAgentMetric, type ChartSegment } from '@/lib/mock-data';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
 import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
-import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-status-for-chart-flow';
+// import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-status-for-chart-flow'; // Removed
 import { format as formatDate, subDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Lock, Users, ShieldCheck, Target, Award } from 'lucide-react'; 
@@ -28,12 +28,7 @@ const availableCentersForAdmin: AvailableCenter[] = [
   { id: 'team2_view', name: 'Team 2 View', baseMockData: mockCenterData2, leadVenderFilterName: 'Team 2' },
 ];
 
-const initialChartConfig = { 
-  statuses: {
-    label: "Statuses",
-  },
-};
-
+// Removed initialChartConfig as chart is removed
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -44,8 +39,7 @@ export default function DashboardPage() {
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true); 
   const [lastFetchedSubmissions, setLastFetchedSubmissions] = useState<number | null>(null);
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
-  const [entryStatusChartData, setEntryStatusChartData] = useState<ChartSegment[]>([]);
-
+  // const [entryStatusChartData, setEntryStatusChartData] = useState<ChartSegment[]>([]); // Removed
 
   const fetchAndDisplayMetrics = useCallback(async (
     filterName: string | null,
@@ -62,18 +56,18 @@ export default function DashboardPage() {
         dailySubmissionsResult,
         yesterdaySubmissionsResult,
         topAgentResult,
-        chartStatsResult
+        // chartStatsResult // Removed
       ] = await Promise.all([
         getDailySubmissions({ targetDate: todayStr, leadVenderFilter: filterName }),
         getDailySubmissions({ targetDate: yesterdayStr, leadVenderFilter: filterName }),
         getTopAgentLastMonth({ leadVenderFilter: filterName }),
-        getEntryStatsByStatusForChart({ leadVenderFilter: filterName, daysToCover: 30 })
+        // getEntryStatsByStatusForChart({ leadVenderFilter: filterName, daysToCover: 30 }) // Removed
       ]);
       
       console.log('[DashboardPage] API Response - Today Submissions:', dailySubmissionsResult);
       console.log('[DashboardPage] API Response - Yesterday Submissions:', yesterdaySubmissionsResult);
       console.log('[DashboardPage] API Response - Top Agent:', topAgentResult);
-      console.log('[DashboardPage] API Response - Chart Stats:', chartStatsResult);
+      // console.log('[DashboardPage] API Response - Chart Stats:', chartStatsResult); // Removed
 
       const todayCount = dailySubmissionsResult.submissionCount;
       const yesterdayCount = yesterdaySubmissionsResult.submissionCount;
@@ -88,7 +82,7 @@ export default function DashboardPage() {
           description: `${topAgentResult.submissionCount} submissions last month.`
       };
       setTopAgentData(newTopAgentData);
-      setEntryStatusChartData(chartStatsResult);
+      // setEntryStatusChartData(chartStatsResult); // Removed
 
       const updatedData: CenterDashboardData = {
         ...baseDataForUI,
@@ -122,12 +116,12 @@ export default function DashboardPage() {
         }
       });
       setTopAgentData(baseDataForUI.topAgentLastMonth || defaultCenterData.topAgentLastMonth!);
-      setEntryStatusChartData(baseDataForUI.entryStatusChartData || []);
+      // setEntryStatusChartData(baseDataForUI.entryStatusChartData || []); // Removed
     } finally {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast]); 
+  }, [toast]); // Removed lastFetchedSubmissions from dependencies as per previous optimization
 
   useEffect(() => {
     if (isAuthLoading || !user) {
@@ -234,7 +228,7 @@ export default function DashboardPage() {
         )}
       </div>
       
-      {isLoadingMetrics && metricsToDisplay.every(m => m.value === 0 || m.value === "N/A") && (!topAgentData || topAgentData.submissionCount === 0) && entryStatusChartData.length === 0 ? (
+      {isLoadingMetrics && metricsToDisplay.every(m => m.value === 0 || m.value === "N/A") && (!topAgentData || topAgentData.submissionCount === 0) /* Removed chartData check */ ? (
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[1,2,3,4].map(i => (
               <div key={i} className="h-40 bg-card rounded-lg shadow-md flex items-center justify-center">
@@ -249,6 +243,7 @@ export default function DashboardPage() {
                 <MetricCard key={metric.id} metric={metric} />
             ))}
           </div>
+          {/* Removed EntryStatusChart rendering section 
           <div className="mt-8">
             <EntryStatusChart 
                 chartData={entryStatusChartData} 
@@ -257,8 +252,10 @@ export default function DashboardPage() {
                 description="Distribution of all entry statuses in the last 30 days."
             />
           </div>
+          */}
         </>
       )}
     </div>
   );
 }
+
