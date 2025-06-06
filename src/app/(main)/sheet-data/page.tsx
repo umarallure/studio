@@ -23,10 +23,11 @@ import { cn } from '@/lib/utils';
 
 const SHEET_DATA_COLLECTION_PATH = "Sheet1Rows";
 const ITEMS_PER_PAGE = 20;
+const ALL_STATUSES_VALUE = "__ALL_STATUSES__";
 
 export default function SheetDataPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
-  const [allSheetData, setAllSheetData] = useState<SheetRow[]>([]); // Holds all data for current role, sorted latest first
+  const [allSheetData, setAllSheetData] = useState<SheetRow[]>([]);
   const [filteredAndSortedSheetData, setFilteredAndSortedSheetData] = useState<SheetRow[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,15 +35,12 @@ export default function SheetDataPage() {
   const [activeTournament, setActiveTournament] = useState<TournamentSettings | null>(null);
   const { toast } = useToast();
 
-  // Filter states
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>(""); // "" means all statuses
   const [agentFilter, setAgentFilter] = useState<string>("");
 
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Effect to fetch the latest tournament (needed for the sync action)
   useEffect(() => {
     const fetchLatestTournament = async () => {
       try {
@@ -68,7 +66,6 @@ export default function SheetDataPage() {
     }
   }, [user]);
 
-  // Effect to fetch and perform initial role-based filtering and sorting
   useEffect(() => {
     if (isAuthLoading) return;
 
@@ -76,10 +73,7 @@ export default function SheetDataPage() {
     setError(null);
 
     const dataCollectionRef = collection(db, SHEET_DATA_COLLECTION_PATH);
-    // Assuming document IDs (__name__) are roughly time-ordered or a 'createdAt' field exists for reliable sorting
-    // For now, we'll sort by __name__ (doc ID) which is often chronological for auto-IDs
-    // and then reverse client-side for "latest first".
-    const q = query(dataCollectionRef, orderBy('__name__', 'desc')); // Firestore sort descending
+    const q = query(dataCollectionRef, orderBy('__name__', 'desc')); 
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const rawData: SheetRow[] = [];
@@ -105,8 +99,8 @@ export default function SheetDataPage() {
       } else {
         roleFilteredData = [];
       }
-      setAllSheetData(roleFilteredData); // Already sorted by Firestore __name__ desc
-      setCurrentPage(1); // Reset to first page on new data/filter
+      setAllSheetData(roleFilteredData); 
+      setCurrentPage(1); 
       setIsLoadingData(false);
     }, (err) => {
       console.error("Error fetching sheet data:", err);
@@ -117,20 +111,18 @@ export default function SheetDataPage() {
     return () => unsubscribe();
   }, [user, isAuthLoading, toast]);
 
-  // Effect to apply client-side filters
   useEffect(() => {
-    let processedData = [...allSheetData]; // Start with role-filtered, latest-first data
+    let processedData = [...allSheetData]; 
 
     if (selectedDate) {
       const formattedSelectedDate = format(selectedDate, 'yyyy-MM-dd');
       processedData = processedData.filter(row => {
         if (!row.Date) return false;
-        // Assuming row.Date is already 'yyyy-MM-dd' from mapDocToSheetRow
         return row.Date === formattedSelectedDate;
       });
     }
 
-    if (statusFilter) {
+    if (statusFilter) { // statusFilter will be "" for "All Statuses", so this condition works
       processedData = processedData.filter(row => row.Status === statusFilter);
     }
 
@@ -141,7 +133,7 @@ export default function SheetDataPage() {
     }
     
     setFilteredAndSortedSheetData(processedData);
-    setCurrentPage(1); // Reset to first page on filter change
+    setCurrentPage(1); 
   }, [allSheetData, selectedDate, statusFilter, agentFilter]);
 
   const uniqueStatuses = useMemo(() => {
@@ -153,7 +145,43 @@ export default function SheetDataPage() {
   }, [allSheetData]);
 
   const handleSyncScores = async () => {
-    // ... (existing sync logic) ...
+    if (!activeTournament || !activeTournament.id) {
+      toast({
+        title: "Sync Failed",
+        description: "No active tournament found to sync scores to.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsSyncing(true);
+    toast({
+      title: "Syncing Scores...",
+      description: `Processing scores for tournament: ${activeTournament.name}. This may take a moment.`,
+    });
+    const result = await syncSheetScoresToDailyResults(activeTournament.id);
+    if (result.success) {
+      toast({
+        title: "Sync Successful!",
+        description: result.message,
+        variant: "default",
+        className: "bg-green-100 border-green-500 text-green-700 dark:bg-green-800 dark:text-green-200 dark:border-green-600",
+        duration: 10000, // Longer duration for success message with details
+      });
+      if (result.details) {
+        console.log("Sync Details:", result.details.join("\n"));
+      }
+    } else {
+      toast({
+        title: "Sync Failed",
+        description: result.message,
+        variant: "destructive",
+        duration: 10000,
+      });
+       if (result.details) {
+        console.error("Sync Failure Details:", result.details.join("\n"));
+      }
+    }
+    setIsSyncing(false);
   };
 
   const totalPages = Math.ceil(filteredAndSortedSheetData.length / ITEMS_PER_PAGE);
@@ -180,7 +208,7 @@ export default function SheetDataPage() {
     );
   }
 
-  if (error && paginatedData.length === 0 && allSheetData.length === 0) { // Only show critical error if no data at all
+  if (error && paginatedData.length === 0 && allSheetData.length === 0) { 
     return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
         <AlertTriangle className="h-16 w-16 text-destructive" />
@@ -217,16 +245,15 @@ export default function SheetDataPage() {
       </div>
 
        {user?.role === 'admin' && !activeTournament && !EffectiveLoading && (
-        <Alert variant="warning">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Admin Note: No Active Tournament</AlertTitle>
+        <Alert variant="default" className="bg-yellow-50 border-yellow-400 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-600 dark:text-yellow-300">
+          <AlertTriangle className="h-4 w-4 !text-yellow-600 dark:!text-yellow-400" />
+          <AlertTitle className="text-yellow-700 dark:text-yellow-300">Admin Note: No Active Tournament</AlertTitle>
           <AlertDescription>
             The "Sync Scores" button is disabled because no active tournament could be found. Please create a tournament first.
           </AlertDescription>
         </Alert>
       )}
       
-      {/* Filters Section */}
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
@@ -241,7 +268,7 @@ export default function SheetDataPage() {
                   id="date-filter"
                   variant={"outline"}
                   className={cn(
-                    "w-full justify-start text-left font-normal",
+                    "w-full justify-start text-left font-normal bg-background",
                     !selectedDate && "text-muted-foreground"
                   )}
                 >
@@ -262,12 +289,17 @@ export default function SheetDataPage() {
 
           <div className="flex-grow space-y-1 min-w-[180px]">
             <label htmlFor="status-filter" className="text-sm font-medium text-muted-foreground">Filter by Status</label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger id="status-filter" className="w-full">
+            <Select
+              value={statusFilter === "" ? ALL_STATUSES_VALUE : statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value === ALL_STATUSES_VALUE ? "" : value);
+              }}
+            >
+              <SelectTrigger id="status-filter" className="w-full bg-background">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value={ALL_STATUSES_VALUE}>All Statuses</SelectItem>
                 {uniqueStatuses.map(status => (
                   <SelectItem key={status} value={status}>{status}</SelectItem>
                 ))}
@@ -282,7 +314,7 @@ export default function SheetDataPage() {
               placeholder="Enter agent name..."
               value={agentFilter}
               onChange={(e) => setAgentFilter(e.target.value)}
-              className="w-full"
+              className="w-full bg-background"
             />
           </div>
           <Button onClick={handleClearFilters} variant="outline" className="w-full md:w-auto">
@@ -309,10 +341,10 @@ export default function SheetDataPage() {
           </p>
         </div>
       )}
-      {error && paginatedData.length === 0 && allSheetData.length > 0 && ( // Error, but some base data exists means filter might be hiding it or error is partial
-        <Alert variant="warning">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Partial Data Note</AlertTitle>
+      {error && paginatedData.length === 0 && allSheetData.length > 0 && ( 
+        <Alert variant="default" className="bg-yellow-50 border-yellow-400 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-600 dark:text-yellow-300">
+            <AlertTriangle className="h-4 w-4 !text-yellow-600 dark:!text-yellow-400" />
+            <AlertTitle className="text-yellow-700 dark:text-yellow-300">Partial Data Note</AlertTitle>
             <AlertDescription>{error} Some data might be available if filters are cleared.</AlertDescription>
         </Alert>
       )}
@@ -361,7 +393,6 @@ export default function SheetDataPage() {
                   ))}
               </TableBody>
               </Table>
-              {/* Pagination Controls */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-6 pt-4 border-t">
                   <Button
@@ -389,3 +420,5 @@ export default function SheetDataPage() {
     </div>
   );
 }
+
+    
