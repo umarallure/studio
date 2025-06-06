@@ -2,30 +2,32 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase'; // Import Firebase auth instance
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User as FirebaseUser } from 'firebase/auth';
+import type { AppUser } from '@/lib/types'; // Import the AppUser type
 
-interface User {
-  uid: string;
-  email: string | null;
-  displayName?: string | null; // Added for more user info
-  centerId?: string; 
-}
+const USER_DETAILS_LOCAL_STORAGE_KEY = 'bracketBlitzUserDetails';
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: User | null;
+  user: AppUser | null;
   isLoading: boolean;
-  login: (emailForFirebase: string, passwordForFirebase: string, originalUsername: string, centerId?: string) => Promise<void>;
+  login: (
+    emailForFirebase: string,
+    passwordForFirebase: string,
+    originalUsername: string,
+    role: AppUser['role'],
+    teamNameForFilter: AppUser['teamNameForFilter']
+  ) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -33,70 +35,77 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        // Try to get originalUsername and centerId from localStorage if previously set during login
-        // This is a bit of a workaround because FirebaseUser doesn't store this custom app data directly
-        const appUserSpecifics = localStorage.getItem('bracketBlitzUserSpecifics');
-        let centerId: string | undefined;
-        let displayName = firebaseUser.displayName || firebaseUser.email?.split('@')[0];
+        const storedUserDetails = localStorage.getItem(USER_DETAILS_LOCAL_STORAGE_KEY);
+        let appUserDetails: Partial<AppUser> = {};
 
-        if (appUserSpecifics) {
-            try {
-                const specifics = JSON.parse(appUserSpecifics);
-                if (specifics.uid === firebaseUser.uid) { // Ensure specifics belong to current firebase user
-                    centerId = specifics.centerId;
-                    displayName = specifics.originalUsername || displayName;
-                }
-            } catch (e) {
-                console.error("Error parsing user specifics from localStorage", e);
+        if (storedUserDetails) {
+          try {
+            const parsedDetails = JSON.parse(storedUserDetails);
+            if (parsedDetails.uid === firebaseUser.uid) { // Ensure details belong to current Firebase user
+              appUserDetails = parsedDetails;
+            } else {
+              // Mismatch, clear stale data
+              localStorage.removeItem(USER_DETAILS_LOCAL_STORAGE_KEY);
             }
+          } catch (e) {
+            console.error("Error parsing user details from localStorage", e);
+            localStorage.removeItem(USER_DETAILS_LOCAL_STORAGE_KEY);
+          }
         }
         
-        setUser({ 
-          uid: firebaseUser.uid, 
+        setUser({
+          uid: firebaseUser.uid,
           email: firebaseUser.email,
-          displayName: displayName,
-          centerId: centerId,
+          username: appUserDetails.username || firebaseUser.email?.split('@')[0] || 'User',
+          role: appUserDetails.role || null,
+          teamNameForFilter: appUserDetails.teamNameForFilter || null,
         });
       } else {
         setUser(null);
-        localStorage.removeItem('bracketBlitzUserSpecifics');
+        localStorage.removeItem(USER_DETAILS_LOCAL_STORAGE_KEY);
       }
       setIsLoading(false);
     });
 
-    return () => unsubscribe(); // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
-  const login = async (emailForFirebase: string, passwordForFirebase: string, originalUsername: string, centerId?: string) => {
+  const login = async (
+    emailForFirebase: string,
+    passwordForFirebase: string,
+    originalUsername: string,
+    role: AppUser['role'],
+    teamNameForFilter: AppUser['teamNameForFilter']
+  ) => {
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, emailForFirebase, passwordForFirebase);
-      // Store app-specific details not part of FirebaseUser directly
-      // This will be picked up by onAuthStateChanged or can be used immediately
-      const userSpecifics = { uid: userCredential.user.uid, originalUsername, centerId };
-      localStorage.setItem('bracketBlitzUserSpecifics', JSON.stringify(userSpecifics));
+      
+      const userDetailsToStore: AppUser = {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        username: originalUsername,
+        role,
+        teamNameForFilter,
+      };
+      localStorage.setItem(USER_DETAILS_LOCAL_STORAGE_KEY, JSON.stringify(userDetailsToStore));
 
-      // The onAuthStateChanged listener will handle setting the user state
-      // We can update user state here too if immediate reflection is needed before onAuthStateChanged fires
-       setUser({
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          displayName: originalUsername,
-          centerId: centerId,
-        });
-      router.push('/bracket');
+      setUser(userDetailsToStore); // Set user state immediately
+      router.push('/bracket'); // Or dashboard, depending on role/preference
     } catch (error) {
       setIsLoading(false);
-      throw error; // Re-throw error to be caught by LoginForm
+      localStorage.removeItem(USER_DETAILS_LOCAL_STORAGE_KEY); // Clear on failed login too
+      throw error;
     }
-    // setIsLoading(false); // isLoading will be set to false by onAuthStateChanged
+    // setIsLoading(false); // isLoading is set by onAuthStateChanged or by direct setUser
   };
 
   const logout = async () => {
     setIsLoading(true);
     await signOut(auth);
-    // onAuthStateChanged will set user to null and isLoading to false
-    localStorage.removeItem('bracketBlitzUserSpecifics');
+    localStorage.removeItem(USER_DETAILS_LOCAL_STORAGE_KEY);
+    setUser(null); // onAuthStateChanged will also do this, but good for immediate UI update
+    setIsLoading(false);
     router.push('/login');
   };
 

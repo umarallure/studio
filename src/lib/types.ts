@@ -62,9 +62,9 @@ export interface SheetRow {
   id: string; // Firestore document ID
   Agent?: string;
   Date?: string; // Expected as YYYY-MM-DD or similar after normalization
-  FromCallback?: boolean; 
+  FromCallback?: boolean;
   INSURED_NAME?: string;
-  LeadVender?: string;    
+  LeadVender?: string;
   Notes?: string;
   ProductType?: string;
   Status?: string;
@@ -83,12 +83,25 @@ export interface TournamentSettings {
 }
 
 // Type for Genkit flow to get daily submissions
-export interface DailySubmissionsInput {
+// Input for the Genkit flow to get daily submissions
+export type DailySubmissionsInput = {
   targetDate: string; // YYYY-MM-DD
-  leadVenderFilter?: string | null; // Optional: filter by specific LeadVender
-}
+  leadVenderFilter?: string | null;
+};
 
-export interface DailySubmissionsOutput {
+// Output from the Genkit flow
+export type DailySubmissionsOutput = {
   submissionCount: number;
-  // Potentially other metrics in the future
+  processedDate: string;
+  filterApplied: string | null | undefined;
+};
+
+
+// User type for AuthContext
+export interface AppUser {
+  uid: string;
+  email: string | null;
+  username: string; // Original username entered at login
+  role: 'admin' | 'teamMember' | null;
+  teamNameForFilter: string | null; // e.g., "Alpha Team", "Bravo Team", or null for admin
 }

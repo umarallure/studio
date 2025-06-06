@@ -11,7 +11,7 @@ export default function LoginPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Gamepad2 size={32} />
           </div>
-          <CardTitle className="font-headline text-3xl text-primary">Bracket Blitz</CardTitle>
+          <CardTitle className="font-headline text-3xl text-primary">BPO Games</CardTitle>
           <CardDescription className="text-muted-foreground">Sign in to join the BPO Games!</CardDescription>
         </CardHeader>
         <CardContent>

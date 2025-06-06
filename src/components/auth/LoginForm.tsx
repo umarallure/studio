@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogIn } from 'lucide-react';
 import { FirebaseError } from 'firebase/app'; // For specific error handling
+import type { AppUser } from '@/lib/types';
 
 export default function LoginForm() {
   const [username, setUsername] = useState('');
@@ -23,17 +24,45 @@ export default function LoginForm() {
       return;
     }
 
-    // Firebase typically uses email for authentication.
-    // We'll construct an email from the username.
-    // Ensure users exist in Firebase Auth with these email formats.
-    const emailForFirebase = `${username}@example.com`;
-    
-    let centerId;
-    if (username.toLowerCase().includes("center1")) centerId = "center1";
-    if (username.toLowerCase().includes("center2")) centerId = "center2";
+    const emailForFirebase = `${username.toLowerCase()}@example.com`;
+    let role: AppUser['role'] = 'teamMember';
+    let teamNameForFilter: AppUser['teamNameForFilter'] = null;
+
+    // Determine role and teamNameForFilter based on username
+    const lowerUsername = username.toLowerCase();
+    if (lowerUsername === 'admin') {
+      role = 'admin';
+      teamNameForFilter = null;
+    } else if (lowerUsername === 'alpha') {
+      role = 'teamMember';
+      teamNameForFilter = 'Alpha Team'; // Must match LeadVender in Sheet1Rows
+    } else if (lowerUsername === 'bravo') {
+      role = 'teamMember';
+      teamNameForFilter = 'Bravo Team'; // Must match LeadVender in Sheet1Rows
+    } else if (lowerUsername.startsWith('team')) {
+        // For generic "teamX" users, e.g. team1, team2, etc.
+        // Assumes LeadVender in sheet might be "Team 1", "Team 2"
+        const teamNumber = lowerUsername.replace('team', '');
+        if (teamNumber && !isNaN(parseInt(teamNumber))) {
+            teamNameForFilter = `Team ${teamNumber}`;
+        } else {
+            // Default for other "team" prefixed users if parsing fails
+            teamNameForFilter = "Default Team"; // Or handle as error
+        }
+    } else {
+      // Default for any other user: treat as a team member,
+      // but without a specific team filter unless derived.
+      // For this example, let's assign them a generic team or no team for filtering
+      // This part would need robust logic based on your actual team names and user provisioning
+      role = 'teamMember';
+      teamNameForFilter = null; // Or a default team name if applicable
+      // Alternatively, you could prevent login if username doesn't match known pattern
+      // setError('Unknown user or team. Please contact administrator.');
+      // return;
+    }
 
     try {
-      await login(emailForFirebase, password, username, centerId);
+      await login(emailForFirebase, password, username, role, teamNameForFilter);
       // Navigation is handled by AuthContext or AuthCheck
     } catch (err) {
       if (err instanceof FirebaseError) {
@@ -66,7 +95,7 @@ export default function LoginForm() {
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="e.g., Center1User (becomes Center1User@example.com)"
+          placeholder="e.g., admin, alpha, bravo"
           required
           className="bg-input"
           disabled={isLoading}
@@ -79,7 +108,7 @@ export default function LoginForm() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
+          placeholder="•••••••• (e.g. password123)"
           required
           className="bg-input"
           disabled={isLoading}
@@ -98,7 +127,7 @@ export default function LoginForm() {
         Sign In
       </Button>
        <p className="text-xs text-muted-foreground text-center">
-        Hint: Username 'testuser', password 'password123' might work if `testuser@example.com` exists in Firebase.
+        Test users: admin, alpha, bravo (pw: password123)
       </p>
     </form>
   );

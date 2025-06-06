@@ -4,7 +4,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Bracket Blitz',
+  title: 'BPO Games',
   description: 'Interactive tournament bracket for BPO centers.',
 };
 
