@@ -24,29 +24,26 @@ export default function LoginForm() {
       return;
     }
 
-    const emailForFirebase = `${username.toLowerCase()}@example.com`;
+    // Construct email using the new @bpogames.com domain
+    const emailForFirebase = `${username.toLowerCase()}@bpogames.com`;
     let role: AppUser['role'] = 'teamMember';
     let teamNameForFilter: AppUser['teamNameForFilter'] = null;
 
-    // Determine role and teamNameForFilter based on username
     const lowerUsername = username.toLowerCase();
     if (lowerUsername === 'admin') {
       role = 'admin';
       teamNameForFilter = null;
     } else if (lowerUsername.startsWith('team') && lowerUsername.endsWith('user')) {
-        // For "teamXuser" users, e.g. team1user, team2user, team16user
         const teamNumberMatch = lowerUsername.match(/^team(\d+)user$/);
         if (teamNumberMatch && teamNumberMatch[1]) {
             const teamNumber = teamNumberMatch[1];
             teamNameForFilter = `Team ${teamNumber}`; // e.g., "Team 1", "Team 16"
             role = 'teamMember';
         } else {
-            // Fallback for non-matching "team...user" pattern
             setError('Invalid team user format. Expected "teamXuser" e.g. "team1user".');
             return;
         }
     } else {
-      // Default for any other user: could be an error or a generic role
       setError(`Unknown username pattern: ${username}. Please use 'admin' or 'teamXuser'.`);
       return;
     }
@@ -59,11 +56,11 @@ export default function LoginForm() {
         switch (err.code) {
           case 'auth/user-not-found':
           case 'auth/wrong-password':
-          case 'auth/invalid-credential':
+          case 'auth/invalid-credential': // This covers wrong email/password too
             setError('Invalid username or password.');
             break;
           case 'auth/invalid-email':
-            setError('Invalid email format derived from username.');
+            setError('Invalid email format derived from username. Ensure username is correct.');
             break;
           default:
             setError('Login failed. Please try again.');
@@ -98,7 +95,7 @@ export default function LoginForm() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="•••••••• (e.g. password123)"
+          placeholder="•••••••• (e.g. adminpassword / team1password1)"
           required
           className="bg-input"
           disabled={isLoading}
@@ -117,7 +114,7 @@ export default function LoginForm() {
         Sign In
       </Button>
        <p className="text-xs text-muted-foreground text-center">
-        Test users: admin, team1user, team2user (pw: password123)
+        Usernames: admin, team1user, team2user... team16user
       </p>
     </form>
   );
