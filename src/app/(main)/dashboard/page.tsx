@@ -12,8 +12,8 @@ import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
 import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-status-for-chart-flow';
 import { format as formatDate, subDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Users, ShieldCheck, Target, Award } from 'lucide-react'; // Added Award
-import MetricCard from '@/components/dashboard/MetricCard'; // Assuming MetricCard can display TopAgentMetric
+import { Loader2, Lock, Users, ShieldCheck, Target, Award } from 'lucide-react'; 
+import MetricCard from '@/components/dashboard/MetricCard'; 
 
 interface AvailableCenter {
   id: string;
@@ -28,7 +28,7 @@ const availableCentersForAdmin: AvailableCenter[] = [
   { id: 'team2_view', name: 'Team 2 View', baseMockData: mockCenterData2, leadVenderFilterName: 'Team 2' },
 ];
 
-const initialChartConfig = { // Basic config, can be enhanced
+const initialChartConfig = { 
   statuses: {
     label: "Statuses",
   },
@@ -41,7 +41,7 @@ export default function DashboardPage() {
 
   const [displayedDashboardData, setDisplayedDashboardData] = useState<CenterDashboardData>(defaultCenterData);
   const [adminSelectedCenterId, setAdminSelectedCenterId] = useState<string>('all');
-  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true); // Start true for initial load
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true); 
   const [lastFetchedSubmissions, setLastFetchedSubmissions] = useState<number | null>(null);
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
   const [entryStatusChartData, setEntryStatusChartData] = useState<ChartSegment[]>([]);
@@ -100,10 +100,8 @@ export default function DashboardPage() {
           trend: todayCount > yesterdayCount ? 'up' : todayCount < yesterdayCount ? 'down' : 'neutral',
           description: filterName ? `Submissions for ${filterName} today.` : 'Total submissions today across all teams.',
         },
-        // topAgentLastMonth: newTopAgentData, // Will render this separately
-        // entryStatusChartData: chartStatsResult, // Will render this separately
       };
-      setDisplayedDashboardData(updatedData); // This sets the base metrics (sales, chargeback, flow)
+      setDisplayedDashboardData(updatedData); 
       console.log('[DashboardPage] Successfully updated UI data for:', uiCenterName);
 
     } catch (error) {
@@ -113,7 +111,7 @@ export default function DashboardPage() {
         description: "Could not load all dynamic data. Displaying last known or default values for some metrics.",
         variant: "destructive",
       });
-      // Fallback: use base mock for everything, or try to use last fetched values if possible
+      
       setDisplayedDashboardData({
         ...baseDataForUI,
         centerName: uiCenterName,
@@ -129,11 +127,11 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast]); // Removed lastFetchedSubmissions to prevent loops
+  }, [toast]); 
 
   useEffect(() => {
     if (isAuthLoading || !user) {
-      setIsLoadingMetrics(true); // Keep loading if auth is not ready
+      setIsLoadingMetrics(true); 
       return;
     }
 
@@ -144,12 +142,12 @@ export default function DashboardPage() {
     } else if (user.role === 'teamMember' && user.teamNameForFilter) {
       const teamConfig = availableCentersForAdmin.find(c => c.leadVenderFilterName === user.teamNameForFilter);
       centerToLoad = {
-        id: user.teamNameForFilter.replace(/\s+/g, '-').toLowerCase(), // Create an ID
+        id: user.teamNameForFilter.replace(/\s+/g, '-').toLowerCase(), 
         name: user.teamNameForFilter,
         baseMockData: teamConfig ? teamConfig.baseMockData : defaultCenterData,
         leadVenderFilterName: user.teamNameForFilter
       };
-    } else { // Team member with no filter, or other unexpected case
+    } else { 
       centerToLoad = {
         id: 'general_user_view',
         name: 'Your Dashboard (General)',
@@ -174,7 +172,7 @@ export default function DashboardPage() {
     setAdminSelectedCenterId(newCenterId);
   };
   
-  if (isAuthLoading && isLoadingMetrics) { // Show main loader if both auth and initial metrics are loading
+  if (isAuthLoading && isLoadingMetrics) { 
     return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -199,11 +197,11 @@ export default function DashboardPage() {
         title: topAgentData.title,
         value: topAgentData.agentName || "N/A",
         unit: topAgentData.submissionCount > 0 ? ` (${topAgentData.submissionCount} subs)` : '',
-        trend: 'neutral' as 'neutral', // No trend for this type of display
+        trend: 'neutral' as 'neutral', 
         icon: topAgentData.icon || Award,
         description: topAgentData.description || `${topAgentData.submissionCount} submissions last month`,
      };
-     metricsToDisplay.push(topAgentCardMetric as any); // Cast as any if CenterMetric doesn't perfectly fit
+     metricsToDisplay.push(topAgentCardMetric as any); 
   }
 
 
@@ -255,8 +253,8 @@ export default function DashboardPage() {
             <EntryStatusChart 
                 chartData={entryStatusChartData} 
                 chartConfig={initialChartConfig} 
-                title={`Entry Status Breakdown (${displayedDashboardData.centerName})`}
-                description={`Distribution of all entry statuses in the last 30 days for ${displayedDashboardData.centerName === "All Teams (Admin View)" ? "all teams" : displayedDashboardData.centerName}.`}
+                title="Entry Status Breakdown"
+                description="Distribution of all entry statuses in the last 30 days."
             />
           </div>
         </>
