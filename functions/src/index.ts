@@ -1,7 +1,9 @@
 
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { format as formatDate, addDays, parseISO, isFuture, isEqual, getDay } from "date-fns";
+
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -320,7 +322,7 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
               else dailyStatus = "Completed - Tie";
             }
             
-            const dailyResultDocRef = db.doc(`tournaments/${tournamentId}/rounds/${roundNumStr}/matches/${matchId}/dailyResults/${dateString}`);
+            const dailyResultDocRef = db.doc(`tournaments/${activeTournamentId}/rounds/${roundNumStr}/matches/${matchId}/dailyResults/${dateString}`);
             const dailyResultPayload = { // Maintain .fields structure for client mapping compatibility
               fields: {
                 team1: { stringValue: team1Name }, team2: { stringValue: team2Name },
@@ -385,9 +387,7 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
 }
 
 
-export const autoSyncTournamentOnSheetChange = functions.firestore
-  .document("Sheet1Rows/{docId}")
-  .onCreate(async (snap, context) => {
+export const autoSyncTournamentOnSheetChange = onDocumentCreated("/Sheet1Rows/{docId}", async (snap, context) => {
     const newSheetRow = snap.data();
     const docId = context.params.docId;
 
