@@ -70,7 +70,8 @@ function normalizeDateString(dateStr) {
     }
 }
 // Helper: Create Daily Result Placeholders (adapted from tournament-service.ts)
-async function _createDailyResultPlaceholdersForMatch(tournamentId, roundNumStr, matchId, team1Name, team2Name, effectiveMatchStartDate, batch, details) {
+async function _createDailyResultPlaceholdersForMatch(tournamentId, // Added tournamentId parameter
+roundNumStr, matchId, team1Name, team2Name, effectiveMatchStartDate, batch, details) {
     if (team1Name === "TBD" || team2Name === "TBD") {
         details.push(`Not creating daily placeholders for R${roundNumStr} M${matchId} as teams are not yet fully determined.`);
         return;
@@ -122,7 +123,6 @@ async function _checkAndAdvanceToNextRound(activeTournamentId, tournamentSetting
     const winnersFromCurrentRound = [];
     let allCurrentRoundMatchesConcluded = true;
     currentRoundMatchesSnap.forEach(matchDoc => {
-        // With Admin SDK, data is direct, but we wrote it with 'fields' for client compatibility.
         const matchDataFields = matchDoc.data().fields;
         if (matchDataFields?.advanced?.stringValue) {
             winnersFromCurrentRound.push(matchDataFields.advanced.stringValue);
@@ -136,9 +136,6 @@ async function _checkAndAdvanceToNextRound(activeTournamentId, tournamentSetting
             const tournamentWinnerName = winnersFromCurrentRound[0];
             details.push(`Tournament "${tournamentSettings.name}" concluded! Overall Winner: ${tournamentWinnerName}.`);
             const tournamentDocRef = db.doc(`tournaments/${activeTournamentId}`);
-            // When updating the main tournament doc, it doesn't need the 'fields' wrapper if client reads it directly.
-            // However, to be safe, let's assume client might map it with mapDocToTournamentSettings, which can handle direct or .fields.
-            // For simplicity and directness, here we update top-level fields.
             batch.update(tournamentDocRef, {
                 overallWinnerName: tournamentWinnerName,
                 status: "Completed"
@@ -219,7 +216,7 @@ async function performTournamentSync(activeTournamentId) {
             return { success: false, message: `Tournament data for ID ${activeTournamentId} is empty.`, details };
         }
         const tournamentSettings = {
-            startDate: tournamentDataFromDb.startDate.toDate(), // Firestore Timestamps need .toDate()
+            startDate: tournamentDataFromDb.startDate.toDate(),
             numberOfRounds: tournamentDataFromDb.numberOfRounds || 0,
             name: tournamentDataFromDb.name || "Unnamed Tournament",
             teamCount: tournamentDataFromDb.teamCount || 0,
@@ -234,10 +231,10 @@ async function performTournamentSync(activeTournamentId) {
             return { success: true, message: `Tournament "${tournamentSettings.name}" is Completed. No sync performed.`, details };
         }
         const sheetRowsCollectionRef = db.collection("Sheet1Rows");
-        const sheetRowsSnapshot = await sheetRowsCollectionRef.get(); // Get all rows
+        const sheetRowsSnapshot = await sheetRowsCollectionRef.get();
         const teamDailyScores = new Map();
         sheetRowsSnapshot.forEach(docSnap => {
-            const row = docSnap.data(); // Direct data access with Admin SDK
+            const row = docSnap.data();
             if (row.LeadVender && row.Date && row.Status === "Submitted") {
                 const teamName = row.LeadVender;
                 const normalizedDate = normalizeDateString(row.Date);
@@ -268,8 +265,8 @@ async function performTournamentSync(activeTournamentId) {
             details.push(`[Cloud Function] Processing R${roundNumStr}. Effective start week: ${(0, date_fns_1.format)(currentRoundEffectiveStartDate, "yyyy-MM-dd")}`);
             for (const matchDoc of matchesSnapshot.docs) {
                 const matchId = matchDoc.id;
-                const matchData = matchDoc.data(); // Direct data
-                const existingMatchFields = matchData.fields; // Assuming data was written with .fields wrapper by client/previous sync
+                const matchData = matchDoc.data();
+                const existingMatchFields = matchData.fields;
                 const originalAdvancedTeam = existingMatchFields?.advanced?.stringValue || null;
                 const team1Name = existingMatchFields?.team1?.stringValue;
                 const team2Name = existingMatchFields?.team2?.stringValue;
@@ -340,7 +337,7 @@ async function performTournamentSync(activeTournamentId) {
                                 status: { stringValue: dailyStatus },
                             }
                         };
-                        batch.set(dailyResultDocRef, dailyResultPayload); // Use set to create or overwrite
+                        batch.set(dailyResultDocRef, dailyResultPayload);
                         updatesMadeCount++;
                         details.push(`[Cloud Function] DailyResult (R${roundNumStr}M${matchId} D:${dateString}): ${team1Name}(${team1ScoreForDay}) vs ${team2Name}(${team2ScoreForDay}). Winner: ${dailyWinnerTeamName || "None"}. Status: ${dailyStatus}.`);
                         if (!seriesWinnerForThisMatch && (calculatedTeam1DailyWins >= 3 || calculatedTeam2DailyWins >= 3)) {
@@ -393,9 +390,14 @@ async function performTournamentSync(activeTournamentId) {
         return { success: false, message: `Failed to sync scores via Cloud Function: ${error.message}`, details };
     }
 }
-exports.autoSyncTournamentOnSheetChange = (0, firestore_1.onDocumentCreated)("/Sheet1Rows/{docId}", async (snap, context) => {
-    const newSheetRow = snap.data();
-    const docId = context.params.docId;
+exports.autoSyncTournamentOnSheetChange = (0, firestore_1.onDocumentCreated)("/Sheet1Rows/{docId}", async (event) => {
+    const docId = event.params.docId;
+    const newSheetRowSnapshot = event.data;
+    if (!newSheetRowSnapshot || !newSheetRowSnapshot.exists) {
+        functions.logger.info(`New Sheet1Row created (ID: ${docId}), but snapshot data is missing. No sync triggered.`);
+        return null;
+    }
+    const newSheetRow = newSheetRowSnapshot.data();
     functions.logger.info(`New Sheet1Row created (ID: ${docId}):`, newSheetRow);
     if (newSheetRow && newSheetRow.Status === "Submitted") {
         functions.logger.info(`Sheet1Row ${docId} has status "Submitted". Attempting to find active tournament for sync.`);
