@@ -320,7 +320,7 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
               else dailyStatus = "Completed - Tie";
             }
             
-            const dailyResultDocRef = db.doc(`tournaments/${activeTournamentId}/rounds/${roundNumStr}/matches/${matchId}/dailyResults/${dateString}`);
+            const dailyResultDocRef = db.doc(`tournaments/${tournamentId}/rounds/${roundNumStr}/matches/${matchId}/dailyResults/${dateString}`);
             const dailyResultPayload = { // Maintain .fields structure for client mapping compatibility
               fields: {
                 team1: { stringValue: team1Name }, team2: { stringValue: team2Name },
@@ -440,4 +440,3 @@ export const autoSyncTournamentOnSheetChange = functions.firestore
       return null;
     }
   });
-
