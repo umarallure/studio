@@ -18,8 +18,7 @@ import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Lock, Sigma, Award, CalendarDays, Info } from 'lucide-react'; 
 import MetricCard from '@/components/dashboard/MetricCard';
-// import DailySubmissionsBarChart from '@/components/dashboard/DailySubmissionsBarChart'; // Removed import
-import DailyStatusRateLineChart from '@/components/dashboard/DailyStatusRateLineChart';
+// import DailyStatusRateLineChart from '@/components/dashboard/DailyStatusRateLineChart'; // Removed import
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface AvailableCenter {
@@ -47,8 +46,8 @@ export default function DashboardPage() {
   
   const [totalPointsInRange, setTotalPointsInRange] = useState<number | null>(null);
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
-  const [dailySubmissionsChartData, setDailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
-  const [dailyNegativeRateChartData, setDailyNegativeRateChartData] = useState<RateChartDataPoint[]>([]);
+  const [dailySubmissionsChartData, setDailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]); // Data kept for potential future use
+  const [dailyNegativeRateChartData, setDailyNegativeRateChartData] = useState<RateChartDataPoint[]>([]); // Data kept for potential future use
   
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
   
@@ -192,7 +191,7 @@ export default function DashboardPage() {
       centerToLoad = {
         id: 'general_user_view',
         name: 'Your Dashboard (General)',
-        baseMockData: defaultCenterData, // Corrected from baseMocData
+        baseMockData: defaultCenterData,
         leadVenderFilterName: null
       };
        if (user.role === 'teamMember' && !user.teamNameForFilter) {
@@ -317,13 +316,14 @@ export default function DashboardPage() {
             <CardDescription>Visualizing performance over the last {FIXED_DATE_RANGE_DAYS} days for {pageTitle}: {fixedRangeText}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-            {/* DailySubmissionsBarChart component removed from here */}
-            <DailyStatusRateLineChart 
-                data={dailyNegativeRateChartData} 
-                isLoading={isLoadingMetrics}
-                title="Daily 'Rejected' Entry Rate"
-                description={`Percentage of entries marked 'Rejected' each day.`}
-            />
+            {/* DailySubmissionsBarChart component removed */}
+            {/* DailyStatusRateLineChart component removed */}
+            {(dailySubmissionsChartData.length === 0 && dailyNegativeRateChartData.length === 0 && !isLoadingMetrics) && (
+                <div className="text-center py-8">
+                    <Info className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <p className="mt-4 text-muted-foreground">No chart data available for the selected period and filter.</p>
+                </div>
+            )}
         </CardContent>
       </Card>
        {(user?.role === 'teamMember' && !user.teamNameForFilter && !isLoadingMetrics && !isAuthLoading) && (
