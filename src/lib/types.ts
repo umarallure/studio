@@ -1,4 +1,6 @@
 
+import type { DateRange } from "react-day-picker";
+
 // Represents a team as understood from Firestore structure primarily by name
 export interface Team {
   name: string; // Team name is the primary identifier from Apps Script
@@ -67,11 +69,11 @@ export interface ChartSegment {
 
 export interface CenterDashboardData {
   centerName: string;
-  dailySales: CenterMetric;
-  chargebackPercentage: CenterMetric;
-  flowThroughRate: CenterMetric;
-  topAgentLastMonth?: TopAgentMetric; // Optional for now
-  entryStatusChartData?: ChartSegment[]; // Optional for now
+  dailySales: CenterMetric; // This will now reflect the last day of the selected range
+  chargebackPercentage: CenterMetric; // Stays as "Prev. Month"
+  flowThroughRate: CenterMetric; // This might need re-evaluation or stay as an overall metric
+  topAgentLastMonth?: TopAgentMetric; // Stays as "Last Month"
+  // entryStatusChartData?: ChartSegment[]; // This was for a pie chart, removed
 }
 
 // New type for data from Sheet1Rows collection
@@ -99,12 +101,15 @@ export interface TournamentSettings {
   status?: string; // e.g., "Scheduled", "Ongoing", "Completed"
 }
 
+// Export DateRange for use in components
+export type { DateRange };
+
 // Genkit flow input/output types
+// --- Existing ---
 export type DailySubmissionsInput = {
   targetDate: string; // YYYY-MM-DD
   leadVenderFilter?: string | null;
 };
-
 export type DailySubmissionsOutput = {
   submissionCount: number;
   processedDate: string;
@@ -125,6 +130,42 @@ export type EntryStatsByStatusForChartInput = {
 };
 export type EntryStatsByStatusForChartOutput = ChartSegment[];
 
+// --- New Genkit Flow Types ---
+export interface DateRangeFilterInput {
+  leadVenderFilter: string | null;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+}
+
+export interface TotalPointsInRangeOutput {
+  totalPoints: number;
+  startDate: string;
+  endDate: string;
+  filterApplied: string | null;
+}
+
+export interface DailyChartDataPoint {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+export interface DailySubmissionsInRangeOutput {
+  dailySubmissions: DailyChartDataPoint[];
+  startDate: string;
+  endDate: string;
+  filterApplied: string | null;
+}
+
+export interface RateChartDataPoint {
+  date: string; // YYYY-MM-DD
+  rate: number; // Percentage
+}
+export interface DailyNegativeStatusRateInRangeOutput {
+  dailyRates: RateChartDataPoint[];
+  startDate: string;
+  endDate: string;
+  filterApplied: string | null;
+}
+
 
 // User type for AuthContext
 export interface AppUser {
@@ -135,3 +176,29 @@ export interface AppUser {
   teamNameForFilter: string | null; // e.g., "Team 1", "Team 2", or null for admin
 }
 
+
+// Match Daily Result (from get-match-daily-result-flow)
+export interface GetMatchDailyResultInput {
+  tournamentId: string;
+  roundNum: string;
+  matchId: string;
+  targetDate: string; // YYYY-MM-DD
+}
+
+export interface GetMatchDailyResultOutput {
+  team1Name: string | null;
+  team2Name: string | null;
+  team1Score: number;
+  team2Score: number;
+  winner: string | null;
+  status: string | null;
+  exists: boolean;
+}
+
+// Match Scheduled Dates (from get-match-scheduled-dates-flow)
+export interface GetMatchScheduledDatesInput {
+  tournamentId: string;
+  roundNum: string;
+  matchId: string;
+}
+export type GetMatchScheduledDatesOutput = string[]; // Array of YYYY-MM-DD date strings
