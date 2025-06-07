@@ -40,7 +40,7 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const date_fns_1 = require("date-fns");
 admin.initializeApp();
 const db = admin.firestore();
-// Helper: Normalize Date String (from existing lib/tournament-service.ts)
+// Helper: Normalize Date String
 function normalizeDateString(dateStr) {
     if (!dateStr)
         return null;
@@ -69,9 +69,8 @@ function normalizeDateString(dateStr) {
         return null;
     }
 }
-// Helper: Create Daily Result Placeholders (adapted from tournament-service.ts)
-async function _createDailyResultPlaceholdersForMatch(tournamentId, // Added tournamentId parameter
-roundNumStr, matchId, team1Name, team2Name, effectiveMatchStartDate, batch, details) {
+// Helper: Create Daily Result Placeholders
+async function _createDailyResultPlaceholdersForMatch(tournamentId, roundNumStr, matchId, team1Name, team2Name, effectiveMatchStartDate, batch, details) {
     if (team1Name === "TBD" || team2Name === "TBD") {
         details.push(`Not creating daily placeholders for R${roundNumStr} M${matchId} as teams are not yet fully determined.`);
         return;
@@ -108,7 +107,7 @@ roundNumStr, matchId, team1Name, team2Name, effectiveMatchStartDate, batch, deta
     }
     details.push(`Ensured 5 working day result placeholders for R${roundNumStr} M${matchId} (${team1Name} vs ${team2Name}). Dates: ${scheduledDates.join(", ")}.`);
 }
-// Helper: Check and Advance to Next Round (adapted from tournament-service.ts)
+// Helper: Check and Advance to Next Round
 async function _checkAndAdvanceToNextRound(activeTournamentId, tournamentSettings, currentRoundNumInt, batch, details) {
     const currentRoundNumStr = String(currentRoundNumInt);
     const nextRoundNumInt = currentRoundNumInt + 1;
@@ -199,7 +198,7 @@ async function _checkAndAdvanceToNextRound(activeTournamentId, tournamentSetting
     }
     details.push(`Successfully set up matches and daily placeholders for round ${nextRoundNumStr}.`);
 }
-// Main Sync Logic (adapted from tournament-service.ts)
+// Main Sync Logic
 async function performTournamentSync(activeTournamentId) {
     const details = [];
     try {
@@ -234,12 +233,30 @@ async function performTournamentSync(activeTournamentId) {
         const sheetRowsSnapshot = await sheetRowsCollectionRef.get();
         const teamDailyScores = new Map();
         sheetRowsSnapshot.forEach(docSnap => {
-            const row = docSnap.data();
-            if (row.LeadVender && row.Date && row.Status === "Submitted") {
-                const teamName = row.LeadVender;
-                const normalizedDate = normalizeDateString(row.Date);
+            const docId = docSnap.id;
+            const rawData = docSnap.data();
+            let leadVender;
+            let dateValue;
+            let statusValue;
+            let agentForLog = "N/A";
+            if (rawData && rawData.fields && typeof rawData.fields === 'object') { // Check for REST API 'fields' wrapper
+                const fields = rawData.fields;
+                leadVender = fields.LeadVender?.stringValue;
+                dateValue = fields.Date?.stringValue;
+                statusValue = fields.Status?.stringValue;
+                agentForLog = fields.Agent?.stringValue || "N/A";
+            }
+            else if (rawData) { // Direct field access (e.g., if written by Admin/Client SDK directly)
+                leadVender = rawData.LeadVender;
+                dateValue = rawData.Date;
+                statusValue = rawData.Status;
+                agentForLog = rawData.Agent || "N/A";
+            }
+            if (leadVender && dateValue && statusValue === "Submitted") {
+                const teamName = leadVender;
+                const normalizedDate = normalizeDateString(dateValue);
                 if (!normalizedDate) {
-                    details.push(`[Cloud Function] Skipping row ID ${docSnap.id} (Agent: ${row.Agent}, Date: ${row.Date}) due to unparseable date.`);
+                    details.push(`[Cloud Function] Skipping row ID ${docId} (Agent: ${agentForLog}, Original Date: ${dateValue}) due to unparseable date.`);
                     return;
                 }
                 if (!teamDailyScores.has(teamName)) {
@@ -257,8 +274,12 @@ async function performTournamentSync(activeTournamentId) {
             const roundNumStr = String(roundNumInt);
             const matchesCollectionRef = db.collection(`tournaments/${activeTournamentId}/rounds/${roundNumStr}/matches`);
             const matchesSnapshot = await matchesCollectionRef.orderBy(admin.firestore.FieldPath.documentId()).get();
-            if (matchesSnapshot.empty && roundNumInt === 1 && tournamentSettings.teamCount > 0) { /* ... */ }
-            if (matchesSnapshot.empty && roundNumInt > 1) { /* ... */
+            if (matchesSnapshot.empty && roundNumInt === 1 && tournamentSettings.teamCount > 0) {
+                details.push(`[Cloud Function] Warning: No matches found for Round 1 of "${tournamentSettings.name}". Initialization might be incomplete or teams not yet assigned.`);
+                continue;
+            }
+            if (matchesSnapshot.empty && roundNumInt > 1) {
+                details.push(`[Cloud Function] No matches found for Round ${roundNumStr} of "${tournamentSettings.name}". This round may not be set up yet.`);
                 continue;
             }
             const currentRoundEffectiveStartDate = (0, date_fns_1.addDays)(tournamentSettings.startDate, (roundNumInt - 1) * 7);
@@ -328,16 +349,21 @@ async function performTournamentSync(activeTournamentId) {
                                 dailyStatus = "Completed - Tie";
                         }
                         const dailyResultDocRef = db.doc(`tournaments/${activeTournamentId}/rounds/${roundNumStr}/matches/${matchId}/dailyResults/${dateString}`);
-                        const dailyResultPayload = {
-                            fields: {
-                                team1: { stringValue: team1Name }, team2: { stringValue: team2Name },
-                                team1Score: { integerValue: team1ScoreForDay }, team2Score: { integerValue: team2ScoreForDay },
-                                winner: dailyWinnerTeamName ? { stringValue: dailyWinnerTeamName } : { nullValue: null },
-                                loser: dailyLoserTeamName ? { stringValue: dailyLoserTeamName } : { nullValue: null },
-                                status: { stringValue: dailyStatus },
-                            }
+                        const dailyResultPayloadFields = {
+                            team1: { stringValue: team1Name }, team2: { stringValue: team2Name },
+                            team1Score: { integerValue: team1ScoreForDay }, team2Score: { integerValue: team2ScoreForDay },
+                            winner: dailyWinnerTeamName ? { stringValue: dailyWinnerTeamName } : { nullValue: null },
+                            loser: dailyLoserTeamName ? { stringValue: dailyLoserTeamName } : { nullValue: null },
+                            status: { stringValue: dailyStatus },
                         };
-                        batch.set(dailyResultDocRef, dailyResultPayload);
+                        // Check if daily result doc exists before deciding set/update, though set often works as upsert for non-merge
+                        const dailyDocSnap = await dailyResultDocRef.get();
+                        if (!dailyDocSnap.exists) {
+                            batch.set(dailyResultDocRef, { fields: dailyResultPayloadFields });
+                        }
+                        else {
+                            batch.update(dailyResultDocRef, { fields: dailyResultPayloadFields });
+                        }
                         updatesMadeCount++;
                         details.push(`[Cloud Function] DailyResult (R${roundNumStr}M${matchId} D:${dateString}): ${team1Name}(${team1ScoreForDay}) vs ${team2Name}(${team2ScoreForDay}). Winner: ${dailyWinnerTeamName || "None"}. Status: ${dailyStatus}.`);
                         if (!seriesWinnerForThisMatch && (calculatedTeam1DailyWins >= 3 || calculatedTeam2DailyWins >= 3)) {
@@ -397,9 +423,16 @@ exports.autoSyncTournamentOnSheetChange = (0, firestore_1.onDocumentCreated)("/S
         functions.logger.info(`New Sheet1Row created (ID: ${docId}), but snapshot data is missing. No sync triggered.`);
         return null;
     }
-    const newSheetRow = newSheetRowSnapshot.data();
-    functions.logger.info(`New Sheet1Row created (ID: ${docId}):`, newSheetRow);
-    if (newSheetRow && newSheetRow.Status === "Submitted") {
+    const newSheetRowData = newSheetRowSnapshot.data();
+    functions.logger.info(`New Sheet1Row created (ID: ${docId}):`, newSheetRowData);
+    let statusValue;
+    if (newSheetRowData && newSheetRowData.fields && typeof newSheetRowData.fields === 'object') { // Check for REST API 'fields' wrapper
+        statusValue = newSheetRowData.fields.Status?.stringValue;
+    }
+    else if (newSheetRowData) { // Direct field access
+        statusValue = newSheetRowData.Status;
+    }
+    if (statusValue === "Submitted") {
         functions.logger.info(`Sheet1Row ${docId} has status "Submitted". Attempting to find active tournament for sync.`);
         let activeTournamentId = null;
         try {
@@ -443,7 +476,7 @@ exports.autoSyncTournamentOnSheetChange = (0, firestore_1.onDocumentCreated)("/S
         }
     }
     else {
-        functions.logger.info(`New Sheet1Row ${docId} does not have status "Submitted" (Status: ${newSheetRow?.Status}). No sync triggered.`);
+        functions.logger.info(`New Sheet1Row ${docId} does not have status "Submitted" (Status: ${statusValue || 'Not Found'}). No sync triggered.`);
         return null;
     }
 });

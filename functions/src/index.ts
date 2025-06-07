@@ -2,14 +2,79 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { onDocumentCreated, FirestoreEvent } from "firebase-functions/v2/firestore";
-import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore"; // Import specific type
+import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 import { format as formatDate, addDays, parseISO, isFuture, isEqual, getDay } from "date-fns";
-
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// Helper: Normalize Date String
+// --- Copied Type Definition ---
+// From src/lib/types.ts for SheetRow
+interface SheetRow {
+  id: string; // Firestore document ID
+  Agent?: string;
+  Date?: string; // Expected as YYYY-MM-DD or similar after normalization
+  FromCallback?: boolean;
+  INSURED_NAME?: string;
+  LeadVender?: string;
+  Notes?: string;
+  ProductType?: string;
+  Status?: string;
+}
+// --- End Copied Type Definition ---
+
+// --- Copied Helper Function ---
+// From src/lib/tournament-config.ts for mapDocToSheetRow
+// Helper to map Firestore document data (from Sheet1Rows) to our SheetRow type
+// This handles the structure written by the Google Apps Script (REST API format) or SDK
+function mapDocToSheetRow(docId: string, data: DocumentData | undefined): SheetRow | null {
+  // Check for REST API structure (data under 'fields')
+  if (data && data.fields && typeof data.fields === 'object') {
+    const fields = data.fields;
+    return {
+      id: docId,
+      Agent: fields.Agent?.stringValue,
+      Date: fields.Date?.stringValue,
+      FromCallback: fields['From Callback?']?.booleanValue, // Handles space in field name
+      INSURED_NAME: fields['INSURED NAME']?.stringValue, // Handles space
+      LeadVender: fields['Lead Vender']?.stringValue,   // Handles space
+      Notes: fields.Notes?.stringValue,
+      ProductType: fields['Product Type']?.stringValue, // Handles space
+      Status: fields.Status?.stringValue,
+    };
+  }
+  // Fallback for direct SDK-like data structure (no 'fields' wrapper)
+  else if (data && typeof data === 'object' && !data.fields) {
+    // Check for a known property to ensure it's likely a SheetRow-like object
+    // This handles cases where field names might have spaces directly at the root
+    const agent = data.Agent || data.agent; // Example of trying common casings
+    const leadVender = data['Lead Vender'] || data.LeadVender || data.leadVender;
+    const status = data.Status || data.status;
+    const dateVal = data.Date || data.date;
+
+    // Only proceed if essential fields might exist (even if some are undefined)
+    // This check is a bit loose but aims to catch SDK-written data without 'fields'.
+    if (agent !== undefined || leadVender !== undefined || status !== undefined || dateVal !== undefined) {
+        return {
+            id: docId,
+            Agent: data.Agent,
+            Date: data.Date,
+            FromCallback: data['From Callback?'],
+            INSURED_NAME: data['INSURED NAME'],
+            LeadVender: data['Lead Vender'],
+            Notes: data.Notes,
+            ProductType: data['Product Type'],
+            Status: data.Status,
+        };
+    }
+  }
+  functions.logger.warn(`[mapDocToSheetRow] Could not map document ${docId}. Data structure not recognized:`, JSON.stringify(data));
+  return null; // If data is undefined or not in a known format
+}
+// --- End Copied Helper Function ---
+
+
+// Helper: Normalize Date String (already present and seems okay)
 function normalizeDateString(dateStr: string | undefined): string | null {
   if (!dateStr) return null;
   try {
@@ -38,7 +103,7 @@ function normalizeDateString(dateStr: string | undefined): string | null {
 
 // Helper: Create Daily Result Placeholders
 async function _createDailyResultPlaceholdersForMatch(
-  tournamentId: string, 
+  tournamentId: string,
   roundNumStr: string,
   matchId: string,
   team1Name: string,
@@ -199,7 +264,7 @@ async function _checkAndAdvanceToNextRound(
 }
 
 
-// Main Sync Logic
+// Main Sync Logic (adapted from tournament-service.ts)
 async function performTournamentSync(activeTournamentId: string): Promise<{ success: boolean, message: string, details?: string[] }> {
   const details: string[] = [];
   try {
@@ -234,39 +299,29 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
         return { success: true, message: `Tournament "${tournamentSettings.name}" is Completed. No sync performed.`, details };
     }
 
-
+    // MODIFIED SECTION: Fetch and map Sheet1Rows robustly
     const sheetRowsCollectionRef = db.collection("Sheet1Rows");
-    const sheetRowsSnapshot = await sheetRowsCollectionRef.get(); 
+    const sheetRowsSnapshot = await sheetRowsCollectionRef.get(); // Firestore Admin SDK returns QuerySnapshot
     
-    const teamDailyScores = new Map<string, Map<string, number>>();
+    const mappedSheetRows: SheetRow[] = []; 
     sheetRowsSnapshot.forEach(docSnap => {
-      const docId = docSnap.id;
-      const rawData = docSnap.data();
-      let leadVender: string | undefined;
-      let dateValue: string | undefined;
-      let statusValue: string | undefined;
-      let agentForLog: string | undefined = "N/A";
-
-
-      if (rawData && rawData.fields && typeof rawData.fields === 'object') { // Check for REST API 'fields' wrapper
-        const fields = rawData.fields as DocumentData;
-        leadVender = fields.LeadVender?.stringValue;
-        dateValue = fields.Date?.stringValue;
-        statusValue = fields.Status?.stringValue;
-        agentForLog = fields.Agent?.stringValue || "N/A";
-      } else if (rawData) { // Direct field access (e.g., if written by Admin/Client SDK directly)
-        leadVender = rawData.LeadVender;
-        dateValue = rawData.Date;
-        statusValue = rawData.Status;
-        agentForLog = rawData.Agent || "N/A";
+      const row = mapDocToSheetRow(docSnap.id, docSnap.data()); // Use the copied mapDocToSheetRow
+      if (row) {
+        mappedSheetRows.push(row);
+      } else {
+        // mapDocToSheetRow logs its own warning if mapping fails for a specific doc
       }
+    });
+    details.push(`[Cloud Function] Fetched and mapped ${mappedSheetRows.length} rows from Sheet1Rows.`);
 
-      if (leadVender && dateValue && statusValue === "Submitted") {
-        const teamName = leadVender;
-        const normalizedDate = normalizeDateString(dateValue);
+    const teamDailyScores = new Map<string, Map<string, number>>();
+    mappedSheetRows.forEach(row => { // Iterate over the MAPPED rows
+      if (row.LeadVender && row.Date && row.Status === "Submitted") {
+        const teamName = row.LeadVender;
+        const normalizedDate = normalizeDateString(row.Date);
         if (!normalizedDate) {
-            details.push(`[Cloud Function] Skipping row ID ${docId} (Agent: ${agentForLog}, Original Date: ${dateValue}) due to unparseable date.`);
-            return;
+            details.push(`[Cloud Function] Skipping mapped row ID ${row.id} (Agent: ${row.Agent || 'N/A'}, Original Date: ${row.Date || 'N/A'}) due to unparseable date.`);
+            return; 
         }
         if (!teamDailyScores.has(teamName)) {
           teamDailyScores.set(teamName, new Map<string, number>());
@@ -275,7 +330,13 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
         scoresForTeam.set(normalizedDate, (scoresForTeam.get(normalizedDate) || 0) + 1);
       }
     });
-    details.push(`[Cloud Function] Aggregated scores from ${sheetRowsSnapshot.size} Sheet1Rows for ${teamDailyScores.size} teams.`);
+    details.push(`[Cloud Function] Aggregated scores from "Submitted" entries for ${teamDailyScores.size} teams.`);
+    if (teamDailyScores.size === 0 && mappedSheetRows.filter(r => r.Status === "Submitted").length > 0) {
+        details.push(`[Cloud Function] WARNING: There were submitted entries, but teamDailyScores map is empty. This indicates a potential issue in LeadVender mapping or date normalization for submitted entries.`);
+    } else if (teamDailyScores.size === 0) {
+        details.push(`[Cloud Function] No "Submitted" entries found to aggregate scores from.`);
+    }
+    // END MODIFIED SECTION
 
     const batch = db.batch();
     let updatesMadeCount = 0;
@@ -346,21 +407,19 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
             }
             
             const dailyResultDocRef = db.doc(`tournaments/${activeTournamentId}/rounds/${roundNumStr}/matches/${matchId}/dailyResults/${dateString}`);
-            const dailyResultPayloadFields = { // These are the fields to go *inside* the 'fields' wrapper
+            const dailyResultPayloadFields = { 
                 team1: { stringValue: team1Name }, team2: { stringValue: team2Name },
                 team1Score: { integerValue: team1ScoreForDay }, team2Score: { integerValue: team2ScoreForDay },
                 winner: dailyWinnerTeamName ? { stringValue: dailyWinnerTeamName } : { nullValue: null },
                 loser: dailyLoserTeamName ? { stringValue: dailyLoserTeamName } : { nullValue: null },
                 status: { stringValue: dailyStatus },
             };
-            // Check if daily result doc exists before deciding set/update, though set often works as upsert for non-merge
             const dailyDocSnap = await dailyResultDocRef.get();
             if (!dailyDocSnap.exists) {
                 batch.set(dailyResultDocRef, { fields: dailyResultPayloadFields });
             } else {
                 batch.update(dailyResultDocRef, { fields: dailyResultPayloadFields });
             }
-
             updatesMadeCount++;
             details.push(`[Cloud Function] DailyResult (R${roundNumStr}M${matchId} D:${dateString}): ${team1Name}(${team1ScoreForDay}) vs ${team2Name}(${team2ScoreForDay}). Winner: ${dailyWinnerTeamName || "None"}. Status: ${dailyStatus}.`);
             
@@ -419,32 +478,34 @@ export const autoSyncTournamentOnSheetChange = onDocumentCreated(
   "/Sheet1Rows/{docId}", 
   async (event: FirestoreEvent<QueryDocumentSnapshot | undefined, { docId: string }>) => {
     
-    const docId = event.params.docId;
+    const eventDocId = event.params.docId; // Renamed to avoid conflict with local docId variables
     const newSheetRowSnapshot = event.data;
 
     if (!newSheetRowSnapshot || !newSheetRowSnapshot.exists) {
-        functions.logger.info(`New Sheet1Row created (ID: ${docId}), but snapshot data is missing. No sync triggered.`);
+        functions.logger.info(`New Sheet1Row created (ID: ${eventDocId}), but snapshot data is missing. No sync triggered.`);
         return null;
     }
     
     const newSheetRowData = newSheetRowSnapshot.data();
-    functions.logger.info(`New Sheet1Row created (ID: ${docId}):`, newSheetRowData);
+    functions.logger.info(`New Sheet1Row created (ID: ${eventDocId}):`, newSheetRowData);
     
     let statusValue: string | undefined;
-    if (newSheetRowData && newSheetRowData.fields && typeof newSheetRowData.fields === 'object') { // Check for REST API 'fields' wrapper
+    // Handle potential 'fields' wrapper for status check
+    if (newSheetRowData && newSheetRowData.fields && typeof newSheetRowData.fields === 'object') {
         statusValue = (newSheetRowData.fields as DocumentData).Status?.stringValue;
-    } else if (newSheetRowData) { // Direct field access
+    } else if (newSheetRowData && newSheetRowData.Status) { // Direct field access
         statusValue = newSheetRowData.Status;
+    } else if (newSheetRowData && newSheetRowData.status) { // common lowercase alternative
+        statusValue = newSheetRowData.status;
     }
 
 
     if (statusValue === "Submitted") {
-      functions.logger.info(`Sheet1Row ${docId} has status "Submitted". Attempting to find active tournament for sync.`);
+      functions.logger.info(`Sheet1Row ${eventDocId} has status "Submitted". Attempting to find active tournament for sync.`);
       
       let activeTournamentId: string | null = null;
       try {
         const tournamentsRef = db.collection("tournaments");
-        // Find the latest tournament that is not "Completed"
         const q = tournamentsRef.where("status", "!=", "Completed").orderBy("status").orderBy("createdAt", "desc").limit(1);
         const querySnapshot = await q.get();
 
@@ -453,7 +514,6 @@ export const autoSyncTournamentOnSheetChange = onDocumentCreated(
           const tournamentData = querySnapshot.docs[0].data();
           functions.logger.info(`Found active tournament: "${tournamentData.name}" (ID: ${activeTournamentId}) for sync.`);
         } else {
-          // Fallback: try finding latest created if no "Ongoing" or "Scheduled" found by status
           const latestQ = tournamentsRef.orderBy("createdAt", "desc").limit(1);
           const latestSnapshot = await latestQ.get();
           if(!latestSnapshot.empty && latestSnapshot.docs[0].data().status !== "Completed") {
@@ -462,26 +522,29 @@ export const autoSyncTournamentOnSheetChange = onDocumentCreated(
             functions.logger.info(`Fallback: Found latest tournament: "${tournamentData.name}" (ID: ${activeTournamentId}) for sync.`);
           } else {
             functions.logger.warn("No active (non-completed) tournament found to sync with.");
-            return null; // No active tournament to sync
+            return null; 
           }
         }
         
         if (activeTournamentId) {
           const syncResult = await performTournamentSync(activeTournamentId);
           if (syncResult.success) {
-            functions.logger.info(`Automatic sync for tournament ${activeTournamentId} triggered by Sheet1Row ${docId} completed successfully. Message: ${syncResult.message}. Details:`, syncResult.details?.join("; "));
+            functions.logger.info(`Automatic sync for tournament ${activeTournamentId} triggered by Sheet1Row ${eventDocId} completed successfully. Message: ${syncResult.message}. Details:`, syncResult.details?.join("; "));
           } else {
-            functions.logger.error(`Automatic sync for tournament ${activeTournamentId} triggered by Sheet1Row ${docId} failed. Message: ${syncResult.message}. Details:`, syncResult.details?.join("; "));
+            functions.logger.error(`Automatic sync for tournament ${activeTournamentId} triggered by Sheet1Row ${eventDocId} failed. Message: ${syncResult.message}. Details:`, syncResult.details?.join("; "));
           }
         }
         return null;
 
-      } catch (error) {
-        functions.logger.error(`Error during autoSyncTournamentOnSheetChange for Sheet1Row ${docId}:`, error);
+      } catch (error: any) {
+        functions.logger.error(`Error during autoSyncTournamentOnSheetChange for Sheet1Row ${eventDocId}:`, error.message, error.stack);
         return null;
       }
     } else {
-      functions.logger.info(`New Sheet1Row ${docId} does not have status "Submitted" (Status: ${statusValue || 'Not Found'}). No sync triggered.`);
+      functions.logger.info(`New Sheet1Row ${eventDocId} does not have status "Submitted" (Status: ${statusValue || 'Not Found'}). No sync triggered.`);
       return null;
     }
   });
+
+
+    
