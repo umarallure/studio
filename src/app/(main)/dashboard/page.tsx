@@ -18,7 +18,7 @@ import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Lock, Sigma, Award, CalendarDays, Info } from 'lucide-react'; 
 import MetricCard from '@/components/dashboard/MetricCard';
-import DailySubmissionsBarChart from '@/components/dashboard/DailySubmissionsBarChart';
+// import DailySubmissionsBarChart from '@/components/dashboard/DailySubmissionsBarChart'; // Removed import
 import DailyStatusRateLineChart from '@/components/dashboard/DailyStatusRateLineChart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -92,7 +92,6 @@ export default function DashboardPage() {
       console.log('[DashboardPage] API - Daily Submissions In Range (Fixed Range):', dailySubmissionsInRangeResult);
       setTotalPointsInRange(totalPointsResult.totalPoints);
 
-      // Validate and filter dailySubmissionsInRangeResult
       const validDailySubmissions = dailySubmissionsInRangeResult.dailySubmissions.filter(
         dp => dp.date && isValid(parseISO(dp.date)) && typeof dp.count === 'number'
       );
@@ -193,11 +192,11 @@ export default function DashboardPage() {
       centerToLoad = {
         id: 'general_user_view',
         name: 'Your Dashboard (General)',
-        baseMocData: defaultCenterData,
+        baseMockData: defaultCenterData, // Corrected from baseMocData
         leadVenderFilterName: null
       };
        if (user.role === 'teamMember' && !user.teamNameForFilter) {
-        setDailySubmissionsChartData([]); // Clear chart data if no team filter
+        setDailySubmissionsChartData([]); 
         setDailyNegativeRateChartData([]);
         toast({
           title: "Data View Restricted",
@@ -318,12 +317,7 @@ export default function DashboardPage() {
             <CardDescription>Visualizing performance over the last {FIXED_DATE_RANGE_DAYS} days for {pageTitle}: {fixedRangeText}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-            <DailySubmissionsBarChart 
-                data={dailySubmissionsChartData} 
-                isLoading={isLoadingMetrics}
-                title="Daily Submissions Volume"
-                description={`Total 'Submitted' entries per day.`}
-            />
+            {/* DailySubmissionsBarChart component removed from here */}
             <DailyStatusRateLineChart 
                 data={dailyNegativeRateChartData} 
                 isLoading={isLoadingMetrics}
@@ -350,5 +344,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
