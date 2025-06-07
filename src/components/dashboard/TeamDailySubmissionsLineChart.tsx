@@ -67,7 +67,7 @@ export default function TeamDailySubmissionsLineChart({
   const formattedData = data.map(item => ({
     ...item,
     formattedDate: isValid(parseISO(item.date)) ? format(parseISO(item.date), 'MMM d') : 'Invalid Date',
-  })).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()); // Ensure data is sorted by date
+  })).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
 
   return (
     <Card className="shadow-lg flex flex-col">
@@ -83,8 +83,8 @@ export default function TeamDailySubmissionsLineChart({
             accessibilityLayer
             data={formattedData}
             margin={{
-              top: 20, // For LabelList
-              left: 0,  // Adjusted for better YAxis label visibility
+              top: 20,
+              left: 0,
               right: 12,
               bottom: 5,
             }}
@@ -106,7 +106,7 @@ export default function TeamDailySubmissionsLineChart({
               fontSize={12}
               allowDecimals={false}
               stroke="hsl(var(--muted-foreground))"
-              domain={[0, 'auto']} // Ensure Y-axis starts at 0
+              domain={[0, 'auto']}
             />
             <ChartTooltip
               cursor={{ stroke: "hsl(var(--accent))", strokeWidth: 1, strokeDasharray: "3 3" }}
@@ -125,8 +125,8 @@ export default function TeamDailySubmissionsLineChart({
             />
             <Line
               dataKey="count"
-              name="submissions" // Name for tooltip
-              type="monotone" // 'natural' in example, 'monotone' is also common
+              name="submissions"
+              type="monotone" 
               stroke={chartConfig.submissions.color}
               strokeWidth={2}
               dot={{
@@ -150,7 +150,7 @@ export default function TeamDailySubmissionsLineChart({
               />
             </Line>
           </LineChart>
-        </ChartContainer>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );
