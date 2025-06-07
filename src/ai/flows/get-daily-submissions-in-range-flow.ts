@@ -77,35 +77,35 @@ const getDailySubmissionsInRangeFlow = ai.defineFlow(
         where("Date", "<=", endDate),
       ];
       if (leadVenderFilter) {
-        queryConstraints.push(where("Lead Vender", "==", leadVenderFilter.trim())); // Using trim for safety
-        console.log(`[FlowInternal DailySubmissionsRange] Added LeadVender filter: "${leadVenderFilter.trim()}"`);
+        // Ensure the field name "Lead Vender" (with a space) matches your Firestore data
+        queryConstraints.push(where("Lead Vender", "==", leadVenderFilter.trim())); 
+        console.log(`[FlowInternal DailySubmissionsRange] Added LeadVender filter: "${leadVenderFilter.trim()}" on field "Lead Vender"`);
       }
       
       const q = query(sheetRowsCollectionRef, ...queryConstraints);
       console.log(`[FlowInternal DailySubmissionsRange] Firestore query constraints for '${leadVenderFilter || 'all'}': ${JSON.stringify(queryConstraints.map(qc => ({_op: (qc as any)._op, _field: (qc as any)._fieldPath.segments.join('.'), _value: (qc as any)._value })))}`);
       
       const querySnapshot = await getDocs(q);
-      console.log(`[FlowInternal DailySubmissionsRange] Firestore query for '${leadVenderFilter || 'all'}' returned ${querySnapshot.size} documents.`);
+      console.log(`[FlowInternal DailySubmissionsRange] Firestore query for '${leadVenderFilter || 'all teams'}' returned ${querySnapshot.size} documents.`);
       
       const submittedRowsByDate: Map<string, number> = new Map();
       let processedDocsCount = 0;
       querySnapshot.forEach(doc => {
         processedDocsCount++;
         const rawData = doc.data();
-        console.log(`[FlowInternal DailySubmissionsRange] Processing doc ${processedDocsCount}/${querySnapshot.size}, ID: ${doc.id}. Raw Data:`, JSON.stringify(rawData));
-        const row = mapDocToSheetRow(doc.id, rawData); // mapDocToSheetRow now has more detailed logging
+        // VERY EXPLICIT LOG OF RAW DATA
+        console.log(`[FlowInternal DailySubmissionsRange] Processing doc ID: ${doc.id}. RAW DATA: ${JSON.stringify(rawData)}`);
+        
+        const row = mapDocToSheetRow(doc.id, rawData); 
 
         if (row) {
           console.log(`[FlowInternal DailySubmissionsRange] Mapped doc ID ${doc.id}: Date='${row.Date}', Status='${row.Status}', LeadVender='${row.LeadVender}'`);
           
           const isSubmitted = row.Status === "Submitted";
-          // Normalize leadVenderFilter for comparison if it exists
           const filterToCompare = leadVenderFilter ? leadVenderFilter.trim() : null;
           const rowLeadVender = row.LeadVender ? row.LeadVender.trim() : null;
           const matchesLeadVender = !filterToCompare || (rowLeadVender === filterToCompare);
           
-          // Date is already YYYY-MM-DD string from mapping if successful, check it's valid and within range.
-          // Firestore query should handle date range, but this is a safeguard for mapped data.
           let isValidDateInRange = false;
           if (row.Date && /^\d{4}-\d{2}-\d{2}$/.test(row.Date)) {
             const mappedDateObj = parseISO(row.Date);
@@ -114,9 +114,9 @@ const getDailySubmissionsInRangeFlow = ai.defineFlow(
             }
           }
           
-          console.log(`[FlowInternal DailySubmissionsRange] Checking conditions for ID ${doc.id}: isSubmitted=${isSubmitted}, matchesLeadVender=${matchesLeadVender} (row:'${rowLeadVender}' vs filter:'${filterToCompare}'), isValidDateInRange=${isValidDateInRange} (rowDate:'${row.Date}')`);
+          console.log(`[FlowInternal DailySubmissionsRange] Checking conditions for ID ${doc.id}: isSubmitted=${isSubmitted} (needs "Submitted"), matchesLeadVender=${matchesLeadVender} (row:'${rowLeadVender}' vs filter:'${filterToCompare}'), isValidDateInRange=${isValidDateInRange} (rowDate:'${row.Date}' vs range [${startDate}, ${endDate}])`);
 
-          if (isSubmitted && matchesLeadVender && isValidDateInRange && row.Date) { // Ensure row.Date is not null/undefined
+          if (isSubmitted && matchesLeadVender && isValidDateInRange && row.Date) {
              submittedRowsByDate.set(row.Date, (submittedRowsByDate.get(row.Date) || 0) + 1);
              console.log(`[FlowInternal DailySubmissionsRange] COUNTED submission for '${filterToCompare || 'all teams'}' on ${row.Date}. New count for date ${row.Date}: ${submittedRowsByDate.get(row.Date)}`);
           } else {
@@ -124,10 +124,12 @@ const getDailySubmissionsInRangeFlow = ai.defineFlow(
             if (!isSubmitted) skipReason.push(`Status not 'Submitted' (is '${row.Status}')`);
             if (!matchesLeadVender) skipReason.push(`LeadVender mismatch ('${rowLeadVender}' vs filter '${filterToCompare}')`);
             if (!isValidDateInRange) skipReason.push(`Date out of range/invalid ('${row.Date}' vs [${formatDate(parsedStartDate, 'yyyy-MM-dd')}, ${formatDate(parsedEndDate, 'yyyy-MM-dd')}])`);
+            if (!row.Date) skipReason.push('row.Date is missing after mapping');
             console.log(`[FlowInternal DailySubmissionsRange] SKIPPED counting doc ID ${doc.id}. Reasons: ${skipReason.join('; ')}`);
           }
         } else {
-            // mapDocToSheetRow already logs why it returned null
+            // mapDocToSheetRow already logs why it returned null if mapping fails
+            console.log(`[FlowInternal DailySubmissionsRange] mapDocToSheetRow returned null for doc ID: ${doc.id}. Raw data was logged above.`);
         }
       });
       console.log(`[FlowInternal DailySubmissionsRange] Finished processing ${querySnapshot.size} docs. Submitted counts by date (before filling gaps):`, JSON.stringify(Array.from(submittedRowsByDate.entries())));
@@ -161,3 +163,4 @@ const getDailySubmissionsInRangeFlow = ai.defineFlow(
     }
   }
 );
+

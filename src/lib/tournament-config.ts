@@ -1,6 +1,7 @@
 
 import type { DocumentData } from 'firebase/firestore';
 import type { Matchup, TournamentSettings, SheetRow } from '@/lib/types';
+import { format as formatDate } from 'date-fns'; // Added for mapDocToSheetRow date handling
 
 // Helper to map Firestore document data (from tournaments/{tournamentId}/rounds/{roundNum}/matches/{matchId}) to our Matchup type
 export function mapFirestoreDocToMatchup(docId: string, roundId: string, data: DocumentData | undefined): Matchup | null {
@@ -59,50 +60,58 @@ export function mapDocToSheetRow(docId: string, data: DocumentData | undefined):
   // Check for REST API structure (data under 'fields')
   if (data.fields && typeof data.fields === 'object') {
     const fields = data.fields;
-    console.log(`[mapDocToSheetRow - ${docId}] Using 'fields' wrapper. LeadVender: '${fields['Lead Vender']?.stringValue}', Status: '${fields.Status?.stringValue}', Date: '${fields.Date?.stringValue}'`);
+    const leadVenderValue = fields['Lead Vender']?.stringValue; // With space
+    const statusValue = fields.Status?.stringValue;
+    const dateValue = fields.Date?.stringValue;
+    console.log(`[mapDocToSheetRow - ${docId}] Using 'fields' wrapper. LeadVender: '${leadVenderValue}', Status: '${statusValue}', Date: '${dateValue}'`);
     return {
       id: docId,
       Agent: fields.Agent?.stringValue,
-      Date: fields.Date?.stringValue,
+      Date: dateValue,
       FromCallback: fields['From Callback?']?.booleanValue,
       INSURED_NAME: fields['INSURED NAME']?.stringValue,
-      LeadVender: fields['Lead Vender']?.stringValue,   // Field name with space
+      LeadVender: leadVenderValue,
       Notes: fields.Notes?.stringValue,
-      ProductType: fields['Product Type']?.stringValue, // Field name with space
-      Status: fields.Status?.stringValue,
+      ProductType: fields['Product Type']?.stringValue,
+      Status: statusValue,
     };
   }
   // Fallback for direct SDK-like data structure (no 'fields' wrapper)
   else if (typeof data === 'object' && !data.fields) {
-    // Check for presence of specific fields expected from screenshot for direct mapping
-    // This helps confirm we're trying to map the right kind of object
-    const hasDirectCandidateFields = data.Agent !== undefined ||
-                                     data.Date !== undefined ||
-                                     data['From Callback?'] !== undefined ||
-                                     data['INSURED NAME'] !== undefined ||
-                                     data['Lead Vender'] !== undefined || // Exact key from screenshot
-                                     data.Status !== undefined ||
-                                     data['Product Type'] !== undefined;
+    // Explicitly check for "Lead Vender" (with space) as per your screenshot for direct access
+    const directLeadVender = data['Lead Vender']; // With space
+    const directStatus = data.Status;
+    const directDate = data.Date; // Assuming it's a string "YYYY-MM-DD"
 
-    if (hasDirectCandidateFields) {
-        console.log(`[mapDocToSheetRow - ${docId}] Attempting direct property access. LeadVender: '${data['Lead Vender']}', Status: '${data.Status}', Date: '${data.Date}'`);
+    // Check if at least one of the critical fields (LeadVender, Status, Date) is present
+    if (directLeadVender !== undefined || directStatus !== undefined || directDate !== undefined) {
+        console.log(`[mapDocToSheetRow - ${docId}] Attempting direct property access. Raw 'Lead Vender': '${directLeadVender}', Raw 'Status': '${directStatus}', Raw 'Date': '${directDate}'`);
+        
+        let finalDate = directDate;
+        // If Date is a Firestore Timestamp, convert it (though screenshot shows string)
+        if (directDate && typeof directDate.toDate === 'function') {
+            finalDate = formatDate(directDate.toDate(), 'yyyy-MM-dd');
+            console.log(`[mapDocToSheetRow - ${docId}] Converted Firestore Timestamp to Date string: '${finalDate}'`);
+        }
+
+
         return {
             id: docId,
             Agent: data.Agent,
-            Date: data.Date, // Assuming this is YYYY-MM-DD string
+            Date: finalDate, 
             FromCallback: data['From Callback?'],
             INSURED_NAME: data['INSURED NAME'],
-            LeadVender: data['Lead Vender'], // Exact key from screenshot
+            LeadVender: directLeadVender, 
             Notes: data.Notes,
             ProductType: data['Product Type'],
-            Status: data.Status,
+            Status: directStatus,
         };
     } else {
-        // This block will be hit if none of the specific direct fields are found
-        console.warn(`[mapDocToSheetRow - ${docId}] Direct candidate fields (Agent, Date, 'Lead Vender', Status, etc.) not found for direct mapping. Data:`, JSON.stringify(data));
+        console.warn(`[mapDocToSheetRow - ${docId}] Direct candidate fields ('Lead Vender', 'Status', 'Date') not found with expected names for direct mapping. Data:`, JSON.stringify(data));
     }
   }
-  // This final warning will be hit if mapping failed by any path
-  console.warn(`[mapDocToSheetRow - ${docId}] Could not map document. Structure not recognized as 'fields' wrapper or expected direct fields. Data:`, JSON.stringify(data));
+  
+  console.warn(`[mapDocToSheetRow - ${docId}] Could not map document. Structure not recognized as 'fields' wrapper or expected direct fields. Raw Data:`, JSON.stringify(data));
   return null;
 }
+
