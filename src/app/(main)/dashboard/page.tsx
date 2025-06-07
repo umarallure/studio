@@ -1,23 +1,23 @@
+
 "use client";
 
-import type { CenterDashboardData, TopAgentMetric, DailyChartDataPoint, RateChartDataPoint } from '@/lib/types';
+import type { CenterDashboardData, TopAgentMetric, DailyChartDataPoint } from '@/lib/types';
 import { defaultCenterData, mockCenterData1, mockCenterData2 } from '@/lib/mock-data';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
 import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
 import { getTotalPointsInRange } from '@/ai/flows/get-total-points-in-range-flow';
 import { getDailySubmissionsInRange } from '@/ai/flows/get-daily-submissions-in-range-flow';
-import { getDailyNegativeStatusRateInRange } from '@/ai/flows/get-daily-negative-status-rate-in-range-flow';
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns'; 
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Sigma, Award, CalendarDays, Info } from 'lucide-react'; 
+import { Loader2, Lock, Sigma, Award, CalendarDays, Info, BarChart3 } from 'lucide-react'; 
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import TeamDailySubmissionsLineChart from '@/components/dashboard/TeamDailySubmissionsLineChart';
 
 interface AvailableCenter {
   id: string;
@@ -33,6 +33,7 @@ const availableCentersForAdmin: AvailableCenter[] = [
 ];
 
 const FIXED_DATE_RANGE_DAYS = 30; 
+const TEAM1_FILTER_NAME = "Team 1"; // Specific filter for the new chart
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -44,22 +45,21 @@ export default function DashboardPage() {
   
   const [totalPointsInRange, setTotalPointsInRange] = useState<number | null>(null);
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
-  const [dailySubmissionsChartData, setDailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
-  const [dailyNegativeRateChartData, setDailyNegativeRateChartData] = useState<RateChartDataPoint[]>([]);
-  
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
   
+  const [team1DailySubmissionsChartData, setTeam1DailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
+
   const fixedDateRange = {
     to: new Date(),
     from: subDays(new Date(), FIXED_DATE_RANGE_DAYS - 1),
   };
 
   const fetchAndDisplayMetrics = useCallback(async (
-    filterName: string | null,
+    filterNameForCards: string | null, // Filter for the general metric cards
     baseDataForUI: CenterDashboardData, 
     uiCenterName: string
   ) => {
-    console.log('[DashboardPage] fetchAndDisplayMetrics called. Filter:', filterName, 'UI Name:', uiCenterName);
+    console.log('[DashboardPage] fetchAndDisplayMetrics called. Cards Filter:', filterNameForCards, 'UI Name:', uiCenterName);
     setIsLoadingMetrics(true);
 
     const startDateStr = formatDate(fixedDateRange.from, 'yyyy-MM-dd');
@@ -67,39 +67,35 @@ export default function DashboardPage() {
     const dayBeforeEndDateStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
 
     try {
-      const flowInput = { leadVenderFilter: filterName, startDate: startDateStr, endDate: endDateStr };
+      const cardsFlowInput = { leadVenderFilter: filterNameForCards, startDate: startDateStr, endDate: endDateStr };
+      const team1ChartFlowInput = { leadVenderFilter: TEAM1_FILTER_NAME, startDate: startDateStr, endDate: endDateStr };
       
       const [
         totalPointsResult,
-        dailySubmissionsInRangeResult,
-        dailyNegativeRateResult,
+        // dailySubmissionsInRangeResult, // This was for the removed bar chart
+        // dailyNegativeRateResult, // This was for the removed line chart
         submissionsForLastDayResult,
         submissionsForDayBeforeLastDayResult,
         topAgentResult,
+        team1SubmissionsChartResult, // New call for Team 1 chart
       ] = await Promise.all([
-        getTotalPointsInRange(flowInput),
-        getDailySubmissionsInRange(flowInput),
-        getDailyNegativeStatusRateInRange(flowInput),
-        getDailySubmissions({ targetDate: endDateStr, leadVenderFilter: filterName }),
-        getDailySubmissions({ targetDate: dayBeforeEndDateStr, leadVenderFilter: filterName }),
-        getTopAgentLastMonth({ leadVenderFilter: filterName }),
+        getTotalPointsInRange(cardsFlowInput),
+        // getDailySubmissionsInRange(cardsFlowInput), // Commented out
+        // getDailyNegativeStatusRateInRange(cardsFlowInput), // Commented out
+        getDailySubmissions({ targetDate: endDateStr, leadVenderFilter: filterNameForCards }),
+        getDailySubmissions({ targetDate: dayBeforeEndDateStr, leadVenderFilter: filterNameForCards }),
+        getTopAgentLastMonth({ leadVenderFilter: filterNameForCards }),
+        getDailySubmissionsInRange(team1ChartFlowInput), // Fetch data for Team 1 line chart
       ]);
       
-      console.log('[DashboardPage] API - Total Points (Fixed Range):', totalPointsResult);
-      console.log('[DashboardPage] API - Daily Submissions In Range (Fixed Range):', dailySubmissionsInRangeResult);
+      console.log('[DashboardPage] API - Total Points (Cards Filter):', totalPointsResult);
       setTotalPointsInRange(totalPointsResult.totalPoints);
 
-      const validDailySubmissions = dailySubmissionsInRangeResult.dailySubmissions.filter(
+      const validTeam1Submissions = team1SubmissionsChartResult.dailySubmissions.filter(
         dp => dp.date && isValid(parseISO(dp.date)) && typeof dp.count === 'number'
       );
-      setDailySubmissionsChartData(validDailySubmissions);
-      console.log('[DashboardPage] API - Validated Daily Submissions for Chart:', validDailySubmissions.length, 'items');
-
-
-      const validNegativeRates = dailyNegativeRateResult.dailyRates.filter(
-        dp => dp.date && isValid(parseISO(dp.date)) && typeof dp.rate === 'number'
-      );
-      setDailyNegativeRateChartData(validNegativeRates);
+      setTeam1DailySubmissionsChartData(validTeam1Submissions);
+      console.log('[DashboardPage] API - Validated Daily Submissions for Team 1 Chart:', validTeam1Submissions.length, 'items');
 
       setDailySubmissionsForCard({
         current: submissionsForLastDayResult.submissionCount,
@@ -127,7 +123,7 @@ export default function DashboardPage() {
           trend: submissionsForLastDayResult.submissionCount > submissionsForDayBeforeLastDayResult.submissionCount ? 'up' 
                : submissionsForLastDayResult.submissionCount < submissionsForDayBeforeLastDayResult.submissionCount ? 'down' 
                : 'neutral',
-          description: filterName ? `For ${filterName} on ${endDateStr}` : `Total on ${endDateStr}`,
+          description: filterNameForCards ? `For ${filterNameForCards} on ${endDateStr}` : `Total on ${endDateStr}`,
           unit: 'subs',
         },
         chargebackPercentage: baseDataForUI.chargebackPercentage,
@@ -144,8 +140,7 @@ export default function DashboardPage() {
         variant: "destructive",
       });
       setTotalPointsInRange(0);
-      setDailySubmissionsChartData([]);
-      setDailyNegativeRateChartData([]);
+      setTeam1DailySubmissionsChartData([]); // Clear chart data on error
       setDailySubmissionsForCard({current: 0, previous: 0});
       setTopAgentData(baseDataForUI.topAgentLastMonth || defaultCenterData.topAgentLastMonth!);
        setDisplayedDashboardData(prev => ({
@@ -174,17 +169,20 @@ export default function DashboardPage() {
     console.log('[DashboardPage] User/AdminCenter change. User:', { role: user.role, teamNameForFilter: user.teamNameForFilter }, 'AdminCenter:', adminSelectedCenterId);
 
     let centerToLoad: AvailableCenter;
+    let filterForMetricCards: string | null;
 
     if (user.role === 'admin') {
       centerToLoad = availableCentersForAdmin.find(c => c.id === adminSelectedCenterId) || availableCentersForAdmin[0];
+      filterForMetricCards = centerToLoad.leadVenderFilterName;
     } else if (user.role === 'teamMember' && user.teamNameForFilter) {
       const teamConfig = availableCentersForAdmin.find(c => c.leadVenderFilterName === user.teamNameForFilter);
       centerToLoad = {
         id: user.teamNameForFilter.replace(/\s+/g, '-').toLowerCase(), 
         name: user.teamNameForFilter,
         baseMockData: teamConfig ? teamConfig.baseMockData : defaultCenterData,
-        leadVenderFilterName: user.teamNameForFilter
+        leadVenderFilterName: user.teamNameForFilter // This IS the filter for cards
       };
+      filterForMetricCards = user.teamNameForFilter;
     } else { 
       centerToLoad = {
         id: 'general_user_view',
@@ -192,9 +190,9 @@ export default function DashboardPage() {
         baseMockData: defaultCenterData,
         leadVenderFilterName: null
       };
+      filterForMetricCards = null;
        if (user.role === 'teamMember' && !user.teamNameForFilter) {
-        setDailySubmissionsChartData([]); 
-        setDailyNegativeRateChartData([]);
+        setTeam1DailySubmissionsChartData([]); // No team context for this user
         toast({
           title: "Data View Restricted",
           description: "Your account is not assigned to a specific team. Some metrics may not be available.",
@@ -202,7 +200,9 @@ export default function DashboardPage() {
         });
       }
     }
-    fetchAndDisplayMetrics(centerToLoad.leadVenderFilterName, centerToLoad.baseMockData, centerToLoad.name);
+    // The team-specific chart for "Team 1" always uses TEAM1_FILTER_NAME for its data query,
+    // regardless of the filterForMetricCards.
+    fetchAndDisplayMetrics(filterForMetricCards, centerToLoad.baseMockData, centerToLoad.name);
 
   }, [user, isAuthLoading, adminSelectedCenterId, fetchAndDisplayMetrics, toast]); 
 
@@ -323,6 +323,17 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* New Chart Section for Team 1 */}
+       <div className="grid grid-cols-1 gap-6 mt-8">
+        <TeamDailySubmissionsLineChart 
+          data={team1DailySubmissionsChartData}
+          teamName={TEAM1_FILTER_NAME}
+          isLoading={isLoadingMetrics}
+          dateRangeDescription={fixedRangeText}
+        />
+      </div>
+
     </div>
   );
 }
