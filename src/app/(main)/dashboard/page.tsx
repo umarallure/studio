@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { CenterDashboardData, TopAgentMetric, DailyChartDataPoint, RateChartDataPoint } from '@/lib/types';
@@ -18,7 +17,6 @@ import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Lock, Sigma, Award, CalendarDays, Info } from 'lucide-react'; 
 import MetricCard from '@/components/dashboard/MetricCard';
-// import DailyStatusRateLineChart from '@/components/dashboard/DailyStatusRateLineChart'; // Removed import
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface AvailableCenter {
@@ -46,8 +44,8 @@ export default function DashboardPage() {
   
   const [totalPointsInRange, setTotalPointsInRange] = useState<number | null>(null);
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
-  const [dailySubmissionsChartData, setDailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]); // Data kept for potential future use
-  const [dailyNegativeRateChartData, setDailyNegativeRateChartData] = useState<RateChartDataPoint[]>([]); // Data kept for potential future use
+  const [dailySubmissionsChartData, setDailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
+  const [dailyNegativeRateChartData, setDailyNegativeRateChartData] = useState<RateChartDataPoint[]>([]);
   
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
   
@@ -310,22 +308,6 @@ export default function DashboardPage() {
         </>
       )}
 
-      <Card className="shadow-lg">
-        <CardHeader>
-            <CardTitle className="font-headline text-xl text-primary">Charts & Trends</CardTitle>
-            <CardDescription>Visualizing performance over the last {FIXED_DATE_RANGE_DAYS} days for {pageTitle}: {fixedRangeText}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-            {/* DailySubmissionsBarChart component removed */}
-            {/* DailyStatusRateLineChart component removed */}
-            {(dailySubmissionsChartData.length === 0 && dailyNegativeRateChartData.length === 0 && !isLoadingMetrics) && (
-                <div className="text-center py-8">
-                    <Info className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <p className="mt-4 text-muted-foreground">No chart data available for the selected period and filter.</p>
-                </div>
-            )}
-        </CardContent>
-      </Card>
        {(user?.role === 'teamMember' && !user.teamNameForFilter && !isLoadingMetrics && !isAuthLoading) && (
         <Card className="mt-6">
           <CardHeader>
@@ -335,7 +317,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
-              Your account is not currently assigned to a specific team, so team-specific dashboard data (including charts) cannot be displayed. 
+              Your account is not currently assigned to a specific team, so team-specific dashboard data cannot be displayed. 
               Please contact an administrator if you believe this is an error.
             </p>
           </CardContent>
