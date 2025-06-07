@@ -1,13 +1,14 @@
 
 "use client";
 
-import type { CenterDashboardData, TopAgentMetric, ChartSegment, DateRange, DailyChartDataPoint, RateChartDataPoint } from '@/lib/types';
-import { defaultCenterData, mockCenterData1, mockCenterData2 } from '@/lib/mock-data'; // Keep existing mocks for base structure
+import type { CenterDashboardData, TopAgentMetric, DailyChartDataPoint, RateChartDataPoint } from '@/lib/types';
+import { defaultCenterData, mockCenterData1, mockCenterData2 } from '@/lib/mock-data';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+// Popover and Calendar removed as filter is being removed
+// import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+// import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
@@ -16,9 +17,9 @@ import { getTotalPointsInRange } from '@/ai/flows/get-total-points-in-range-flow
 import { getDailySubmissionsInRange } from '@/ai/flows/get-daily-submissions-in-range-flow';
 import { getDailyNegativeStatusRateInRange } from '@/ai/flows/get-daily-negative-status-rate-in-range-flow';
 
-import { format as formatDate, subDays, addDays } from 'date-fns';
+import { format as formatDate, subDays } from 'date-fns'; // addDays removed as dynamic range is gone
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Users, ShieldCheck, Target, Award, CalendarDays, Sigma, BarChartHorizontalBig, LineChart as LineChartIcon } from 'lucide-react'; 
+import { Loader2, Lock, Sigma, Award, CalendarDays } from 'lucide-react'; 
 import MetricCard from '@/components/dashboard/MetricCard';
 import DailySubmissionsBarChart from '@/components/dashboard/DailySubmissionsBarChart';
 import DailyStatusRateLineChart from '@/components/dashboard/DailyStatusRateLineChart';
@@ -27,7 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 interface AvailableCenter {
   id: string;
   name: string;
-  baseMockData: CenterDashboardData; // Base structure, dynamic values will override
+  baseMockData: CenterDashboardData; 
   leadVenderFilterName: string | null;
 }
 
@@ -35,8 +36,9 @@ const availableCentersForAdmin: AvailableCenter[] = [
   { id: 'all', name: 'All Teams (Admin View)', baseMockData: defaultCenterData, leadVenderFilterName: null },
   { id: 'team1_view', name: 'Team 1 View', baseMockData: mockCenterData1, leadVenderFilterName: 'Team 1' },
   { id: 'team2_view', name: 'Team 2 View', baseMockData: mockCenterData2, leadVenderFilterName: 'Team 2' },
-  // Add more teams here if needed
 ];
+
+const FIXED_DATE_RANGE_DAYS = 30; // Fetch data for the last 30 days
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -46,53 +48,46 @@ export default function DashboardPage() {
   const [adminSelectedCenterId, setAdminSelectedCenterId] = useState<string>('all');
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true); 
   
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 29), // last 30 days including today
-    to: new Date(),
-  });
+  // Date range state removed
+  // const [dateRange, setDateRange] = useState<DateRange | undefined>({
+  //   from: subDays(new Date(), 29), 
+  //   to: new Date(),
+  // });
 
-  // States for new metrics and charts
   const [totalPointsInRange, setTotalPointsInRange] = useState<number | null>(null);
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
   const [dailySubmissionsChartData, setDailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
   const [dailyNegativeRateChartData, setDailyNegativeRateChartData] = useState<RateChartDataPoint[]>([]);
   
-  // States for static metrics (not affected by date range)
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
-  // Chargeback % is also static for "Prev. Month" from mock for now
+  
+  const fixedDateRange = {
+    to: new Date(),
+    from: subDays(new Date(), FIXED_DATE_RANGE_DAYS - 1),
+  };
 
   const fetchAndDisplayMetrics = useCallback(async (
     filterName: string | null,
-    baseDataForUI: CenterDashboardData, // Used for static parts like chargeback%
-    uiCenterName: string,
-    currentDateRange: DateRange | undefined
+    baseDataForUI: CenterDashboardData, 
+    uiCenterName: string
   ) => {
-    console.log('[DashboardPage] fetchAndDisplayMetrics called. Filter:', filterName, 'UI Name:', uiCenterName, 'Date Range:', currentDateRange);
+    console.log('[DashboardPage] fetchAndDisplayMetrics called. Filter:', filterName, 'UI Name:', uiCenterName);
     setIsLoadingMetrics(true);
 
-    if (!currentDateRange || !currentDateRange.from || !currentDateRange.to) {
-      toast({ title: "Date Range Error", description: "Please select a valid date range.", variant: "destructive" });
-      setIsLoadingMetrics(false);
-      return;
-    }
-
-    const startDateStr = formatDate(currentDateRange.from, 'yyyy-MM-dd');
-    const endDateStr = formatDate(currentDateRange.to, 'yyyy-MM-dd');
-    const dayBeforeEndDateStr = formatDate(subDays(currentDateRange.to, 1), 'yyyy-MM-dd');
-
+    // Use fixed date range
+    const startDateStr = formatDate(fixedDateRange.from, 'yyyy-MM-dd');
+    const endDateStr = formatDate(fixedDateRange.to, 'yyyy-MM-dd');
+    const dayBeforeEndDateStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
 
     try {
       const flowInput = { leadVenderFilter: filterName, startDate: startDateStr, endDate: endDateStr };
       
-      // Fetch data for new metrics and charts
       const [
         totalPointsResult,
         dailySubmissionsInRangeResult,
         dailyNegativeRateResult,
-        // Data for "Daily Submissions" card
         submissionsForLastDayResult,
         submissionsForDayBeforeLastDayResult,
-        // Static data (fetched once or less frequently, but included here for unified loading state)
         topAgentResult,
       ] = await Promise.all([
         getTotalPointsInRange(flowInput),
@@ -103,12 +98,9 @@ export default function DashboardPage() {
         getTopAgentLastMonth({ leadVenderFilter: filterName }),
       ]);
       
-      console.log('[DashboardPage] API - Total Points:', totalPointsResult);
-      console.log('[DashboardPage] API - Daily Submissions In Range:', dailySubmissionsInRangeResult);
-      console.log('[DashboardPage] API - Daily Negative Rate:', dailyNegativeRateResult);
-      console.log('[DashboardPage] API - Submissions for Last Day of Range:', submissionsForLastDayResult);
-      console.log('[DashboardPage] API - Submissions for Day Before Last Day:', submissionsForDayBeforeLastDayResult);
-      console.log('[DashboardPage] API - Top Agent:', topAgentResult);
+      console.log('[DashboardPage] API - Total Points (Fixed Range):', totalPointsResult);
+      console.log('[DashboardPage] API - Daily Submissions In Range (Fixed Range):', dailySubmissionsInRangeResult);
+      console.log('[DashboardPage] API - Daily Negative Rate (Fixed Range):', dailyNegativeRateResult);
 
       setTotalPointsInRange(totalPointsResult.totalPoints);
       setDailySubmissionsChartData(dailySubmissionsInRangeResult.dailySubmissions);
@@ -129,13 +121,12 @@ export default function DashboardPage() {
       };
       setTopAgentData(newTopAgentData);
 
-      // Update the parts of displayedDashboardData that are truly dynamic or depend on these fetches
       setDisplayedDashboardData(prev => ({
-        ...prev, // Keep existing structure like mock chargeback %
+        ...prev, 
         centerName: uiCenterName, 
-        dailySales: { // This card is now for the "Last Day of Selected Range"
-          ...prev.dailySales, // Keep icon etc. from base
-          title: "Submissions (Last Day of Range)",
+        dailySales: { 
+          ...prev.dailySales, 
+          title: `Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`, // Reflects last day of fixed range
           value: submissionsForLastDayResult.submissionCount,
           previousValue: submissionsForDayBeforeLastDayResult.submissionCount,
           trend: submissionsForLastDayResult.submissionCount > submissionsForDayBeforeLastDayResult.submissionCount ? 'up' 
@@ -144,9 +135,6 @@ export default function DashboardPage() {
           description: filterName ? `For ${filterName} on ${endDateStr}` : `Total on ${endDateStr}`,
           unit: 'subs',
         },
-        // Chargeback and Flow-through are from mock data in this setup currently
-        // If they need to be dynamic, they'd need their own flows and state updates.
-        // For now, they take their values from baseDataForUI which is derived from mocks.
         chargebackPercentage: baseDataForUI.chargebackPercentage,
         flowThroughRate: baseDataForUI.flowThroughRate,
       })); 
@@ -160,7 +148,6 @@ export default function DashboardPage() {
         description: "Could not load all dynamic data. Displaying last known or default values.",
         variant: "destructive",
       });
-      // Fallback to less dynamic data or zeros on error
       setTotalPointsInRange(0);
       setDailySubmissionsChartData([]);
       setDailyNegativeRateChartData([]);
@@ -177,19 +164,19 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast]); 
+  }, [toast, fixedDateRange.from, fixedDateRange.to]); // dependency on fixedDateRange parts
 
   useEffect(() => {
     if (isAuthLoading) { 
       setIsLoadingMetrics(true); 
       return;
     }
-    if (!user || !dateRange?.from || !dateRange?.to) {
+    if (!user) { // Removed dateRange check here
         setIsLoadingMetrics(false);
         return;
     }
 
-    console.log('[DashboardPage] User/DateRange change. User:', { role: user.role, teamNameForFilter: user.teamNameForFilter }, 'AdminCenter:', adminSelectedCenterId, 'DateRange:', dateRange);
+    console.log('[DashboardPage] User/AdminCenter change. User:', { role: user.role, teamNameForFilter: user.teamNameForFilter }, 'AdminCenter:', adminSelectedCenterId);
 
     let centerToLoad: AvailableCenter;
 
@@ -218,14 +205,14 @@ export default function DashboardPage() {
         });
       }
     }
-    fetchAndDisplayMetrics(centerToLoad.leadVenderFilterName, centerToLoad.baseMockData, centerToLoad.name, dateRange);
+    fetchAndDisplayMetrics(centerToLoad.leadVenderFilterName, centerToLoad.baseMockData, centerToLoad.name);
 
-  }, [user, isAuthLoading, adminSelectedCenterId, dateRange, fetchAndDisplayMetrics, toast]);
+  }, [user, isAuthLoading, adminSelectedCenterId, fetchAndDisplayMetrics, toast]); // dateRange removed from dependencies
 
 
   const handleAdminCenterChange = (newCenterId: string) => {
     console.log('[DashboardPage] Admin Center Change - New center selected:', newCenterId);
-    setAdminSelectedCenterId(newCenterId); // This will trigger the useEffect
+    setAdminSelectedCenterId(newCenterId); 
   };
   
   if (isAuthLoading && isLoadingMetrics) { 
@@ -242,17 +229,17 @@ export default function DashboardPage() {
     : (user?.teamNameForFilter ? `${user.teamNameForFilter} Dashboard` : "Team Dashboard"));
 
   const metricsToDisplay = [
-    displayedDashboardData.dailySales, // Now represents last day of range
-    { // New "Total Points (Range)" card
+    displayedDashboardData.dailySales, 
+    { 
       id: 'totalPointsRange',
-      title: `Total Points (${dateRange?.from ? formatDate(dateRange.from, 'LLL d') : ''} - ${dateRange?.to ? formatDate(dateRange.to, 'LLL d') : ''})`,
+      title: `Total Points (Last ${FIXED_DATE_RANGE_DAYS} Days)`,
       value: totalPointsInRange ?? (isLoadingMetrics ? '...' : 0),
       unit: 'points',
       trend: 'neutral' as 'neutral',
       icon: Sigma,
-      description: 'Total "Submitted" entries in selected range.',
+      description: `Total 'Submitted' entries in the last ${FIXED_DATE_RANGE_DAYS} days.`,
     },
-    displayedDashboardData.chargebackPercentage, // Static: Prev. Month
+    displayedDashboardData.chargebackPercentage,
   ];
   if (topAgentData) {
      const topAgentCardMetric = {
@@ -266,6 +253,8 @@ export default function DashboardPage() {
      };
      metricsToDisplay.push(topAgentCardMetric as any); 
   }
+
+  const fixedRangeText = `Last ${FIXED_DATE_RANGE_DAYS} Days (${formatDate(fixedDateRange.from, "LLL d")} - ${formatDate(fixedDateRange.to, "LLL d")})`;
 
   return (
     <div className="space-y-8">
@@ -296,41 +285,11 @@ export default function DashboardPage() {
                 Team View Locked
               </div>
             )}
-             <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="date"
-                    variant={"outline"}
-                    className="w-full sm:w-[260px] justify-start text-left font-normal bg-input"
-                    disabled={isLoadingMetrics}
-                  >
-                    <CalendarDays className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>
-                          {formatDate(dateRange.from, "LLL dd, y")} - {" "}
-                          {formatDate(dateRange.to, "LLL dd, y")}
-                        </>
-                      ) : (
-                        formatDate(dateRange.from, "LLL dd, y")
-                      )
-                    ) : (
-                      <span>Pick a date range</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={setDateRange} // This will trigger useEffect
-                    numberOfMonths={2}
-                    disabled={(date) => date > new Date() || date < new Date("2000-01-01")}
-                  />
-                </PopoverContent>
-              </Popover>
+            {/* Date Range Picker Removed - Displaying fixed range text instead */}
+            <div className="flex items-center text-sm p-2 rounded-md bg-input text-foreground border border-border">
+                <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
+                Data for: {fixedRangeText}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -356,7 +315,7 @@ export default function DashboardPage() {
       <Card className="shadow-lg">
         <CardHeader>
             <CardTitle className="font-headline text-xl text-primary">Charts & Trends</CardTitle>
-            <CardDescription>Visualizing performance over the selected period: {dateRange?.from ? formatDate(dateRange.from, "PPP") : ""} - {dateRange?.to ? formatDate(dateRange.to, "PPP") : ""}</CardDescription>
+            <CardDescription>Visualizing performance over the last {FIXED_DATE_RANGE_DAYS} days: {fixedRangeText}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
             <DailySubmissionsBarChart 
@@ -377,3 +336,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
