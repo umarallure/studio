@@ -1,7 +1,8 @@
 
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, FirestoreEvent } from "firebase-functions/v2/firestore";
+import type { QueryDocumentSnapshot } from "firebase-admin/firestore"; // Import specific type
 import { format as formatDate, addDays, parseISO, isFuture, isEqual, getDay } from "date-fns";
 
 
@@ -37,7 +38,7 @@ function normalizeDateString(dateStr: string | undefined): string | null {
 
 // Helper: Create Daily Result Placeholders (adapted from tournament-service.ts)
 async function _createDailyResultPlaceholdersForMatch(
-  tournamentId: string,
+  tournamentId: string, // Added tournamentId parameter
   roundNumStr: string,
   matchId: string,
   team1Name: string,
@@ -64,7 +65,7 @@ async function _createDailyResultPlaceholdersForMatch(
       scheduledDates.push(dateString);
       const dailyResultDocRef = db.doc(`tournaments/${tournamentId}/rounds/${roundNumStr}/matches/${matchId}/dailyResults/${dateString}`);
       
-      const dailyResultData = { // This structure is for client compatibility (mapFirestoreDocToMatchup expects .fields)
+      const dailyResultData = { 
         fields: {
           team1: { stringValue: team1Name },
           team2: { stringValue: team2Name },
@@ -113,7 +114,6 @@ async function _checkAndAdvanceToNextRound(
   let allCurrentRoundMatchesConcluded = true;
 
   currentRoundMatchesSnap.forEach(matchDoc => {
-    // With Admin SDK, data is direct, but we wrote it with 'fields' for client compatibility.
     const matchDataFields = matchDoc.data().fields; 
     if (matchDataFields?.advanced?.stringValue) {
       winnersFromCurrentRound.push(matchDataFields.advanced.stringValue);
@@ -127,9 +127,6 @@ async function _checkAndAdvanceToNextRound(
       const tournamentWinnerName = winnersFromCurrentRound[0];
       details.push(`Tournament "${tournamentSettings.name}" concluded! Overall Winner: ${tournamentWinnerName}.`);
       const tournamentDocRef = db.doc(`tournaments/${activeTournamentId}`);
-      // When updating the main tournament doc, it doesn't need the 'fields' wrapper if client reads it directly.
-      // However, to be safe, let's assume client might map it with mapDocToTournamentSettings, which can handle direct or .fields.
-      // For simplicity and directness, here we update top-level fields.
       batch.update(tournamentDocRef, { 
         overallWinnerName: tournamentWinnerName, 
         status: "Completed" 
@@ -184,7 +181,7 @@ async function _checkAndAdvanceToNextRound(
 
     const existingNextRoundMatchDataFields = matchToUpdateDoc.data().fields;
     if (existingNextRoundMatchDataFields.team1?.stringValue !== team1Name || existingNextRoundMatchDataFields.team2?.stringValue !== team2Name || existingNextRoundMatchDataFields.team1?.stringValue === "TBD") {
-        batch.update(matchToUpdateDoc.ref, { // Update match doc fields
+        batch.update(matchToUpdateDoc.ref, { 
             "fields.team1": { stringValue: team1Name }, 
             "fields.team2": { stringValue: team2Name },
             "fields.team1Wins": { integerValue: 0 }, 
@@ -221,7 +218,7 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
     }
     
     const tournamentSettings = {
-        startDate: tournamentDataFromDb.startDate.toDate(), // Firestore Timestamps need .toDate()
+        startDate: tournamentDataFromDb.startDate.toDate(), 
         numberOfRounds: tournamentDataFromDb.numberOfRounds || 0,
         name: tournamentDataFromDb.name || "Unnamed Tournament",
         teamCount: tournamentDataFromDb.teamCount || 0,
@@ -239,11 +236,11 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
 
 
     const sheetRowsCollectionRef = db.collection("Sheet1Rows");
-    const sheetRowsSnapshot = await sheetRowsCollectionRef.get(); // Get all rows
+    const sheetRowsSnapshot = await sheetRowsCollectionRef.get(); 
     
     const teamDailyScores = new Map<string, Map<string, number>>();
     sheetRowsSnapshot.forEach(docSnap => {
-      const row = docSnap.data(); // Direct data access with Admin SDK
+      const row = docSnap.data(); 
       if (row.LeadVender && row.Date && row.Status === "Submitted") {
         const teamName = row.LeadVender;
         const normalizedDate = normalizeDateString(row.Date);
@@ -277,8 +274,8 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
 
       for (const matchDoc of matchesSnapshot.docs) {
         const matchId = matchDoc.id;
-        const matchData = matchDoc.data(); // Direct data
-        const existingMatchFields = matchData.fields; // Assuming data was written with .fields wrapper by client/previous sync
+        const matchData = matchDoc.data(); 
+        const existingMatchFields = matchData.fields; 
         const originalAdvancedTeam = existingMatchFields?.advanced?.stringValue || null;
 
         const team1Name = existingMatchFields?.team1?.stringValue;
@@ -323,7 +320,7 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
             }
             
             const dailyResultDocRef = db.doc(`tournaments/${activeTournamentId}/rounds/${roundNumStr}/matches/${matchId}/dailyResults/${dateString}`);
-            const dailyResultPayload = { // Maintain .fields structure for client mapping compatibility
+            const dailyResultPayload = { 
               fields: {
                 team1: { stringValue: team1Name }, team2: { stringValue: team2Name },
                 team1Score: { integerValue: team1ScoreForDay }, team2Score: { integerValue: team2ScoreForDay },
@@ -332,7 +329,7 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
                 status: { stringValue: dailyStatus },
               }
             };
-            batch.set(dailyResultDocRef, dailyResultPayload); // Use set to create or overwrite
+            batch.set(dailyResultDocRef, dailyResultPayload); 
             updatesMadeCount++;
             details.push(`[Cloud Function] DailyResult (R${roundNumStr}M${matchId} D:${dateString}): ${team1Name}(${team1ScoreForDay}) vs ${team2Name}(${team2ScoreForDay}). Winner: ${dailyWinnerTeamName || "None"}. Status: ${dailyStatus}.`);
             
@@ -387,10 +384,19 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
 }
 
 
-export const autoSyncTournamentOnSheetChange = onDocumentCreated("/Sheet1Rows/{docId}", async (snap, context) => {
-    const newSheetRow = snap.data();
-    const docId = context.params.docId;
+export const autoSyncTournamentOnSheetChange = onDocumentCreated(
+  "/Sheet1Rows/{docId}", 
+  async (event: FirestoreEvent<QueryDocumentSnapshot | undefined, { docId: string }>) => {
+    
+    const docId = event.params.docId;
+    const newSheetRowSnapshot = event.data;
 
+    if (!newSheetRowSnapshot || !newSheetRowSnapshot.exists) {
+        functions.logger.info(`New Sheet1Row created (ID: ${docId}), but snapshot data is missing. No sync triggered.`);
+        return null;
+    }
+    
+    const newSheetRow = newSheetRowSnapshot.data();
     functions.logger.info(`New Sheet1Row created (ID: ${docId}):`, newSheetRow);
 
     if (newSheetRow && newSheetRow.Status === "Submitted") {
@@ -440,3 +446,4 @@ export const autoSyncTournamentOnSheetChange = onDocumentCreated("/Sheet1Rows/{d
       return null;
     }
   });
+
