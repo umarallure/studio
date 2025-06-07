@@ -65,6 +65,8 @@ export default function DailySubmissionsBarChart({
     formattedDate: format(parseISO(item.date), 'MMM d'), // Short date format for XAxis
   }));
 
+  const barSize = formattedData.length > 0 ? Math.min(30, 300 / formattedData.length) : 30;
+
   return (
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
       <CardHeader className="items-center pb-0">
@@ -105,7 +107,7 @@ export default function DailySubmissionsBarChart({
                 indicator="dot" 
               />}
             />
-            <Bar dataKey="count" fill={chartConfig.submissions.color} radius={4} barSize={Math.min(30, 300 / formattedData.length)} />
+            <Bar dataKey="count" fill={chartConfig.submissions.color} radius={4} barSize={barSize} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
