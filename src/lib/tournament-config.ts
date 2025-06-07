@@ -51,11 +51,14 @@ export function mapDocToTournamentSettings(docData: DocumentData | undefined, id
 }
 
 // Helper to map Firestore document data (from Sheet1Rows) to our SheetRow type
-// This handles the structure written by the Google Apps Script (REST API format)
+// This handles the structure written by the Google Apps Script (REST API format) or SDK
 export function mapDocToSheetRow(docId: string, data: DocumentData | undefined): SheetRow | null {
+  if (!data) return null;
+
   // Check for REST API structure (data under 'fields')
-  if (data && data.fields && typeof data.fields === 'object') {
+  if (data.fields && typeof data.fields === 'object') {
     const fields = data.fields;
+    // console.log(`[mapDocToSheetRow - ${docId}] Using 'fields' wrapper path for LeadVender: ${fields['Lead Vender']?.stringValue}, Status: ${fields.Status?.stringValue}`);
     return {
       id: docId,
       Agent: fields.Agent?.stringValue,
@@ -69,19 +72,24 @@ export function mapDocToSheetRow(docId: string, data: DocumentData | undefined):
     };
   }
   // Fallback for direct SDK-like data structure (no 'fields' wrapper)
-  else if (data && typeof data === 'object' && !data.fields && 'Agent' in data) { // check for a known property and no 'fields'
+  // Check for presence of key fields that would indicate it's a SheetRow-like object
+  else if (typeof data === 'object' && !data.fields && 
+           (data.Agent !== undefined || data.LeadVender !== undefined || data.Status !== undefined || data.Date !== undefined || data['Lead Vender'] !== undefined)
+          ) {
+    // console.log(`[mapDocToSheetRow - ${docId}] Using direct property access path for LeadVender: ${data['Lead Vender'] || data.LeadVender}, Status: ${data.Status}`);
     return {
         id: docId,
         Agent: data.Agent,
         Date: data.Date,
         FromCallback: data['From Callback?'],
         INSURED_NAME: data['INSURED NAME'],
-        LeadVender: data['Lead Vender'],
+        LeadVender: data['Lead Vender'] || data.LeadVender, // Handle both casings
         Notes: data.Notes,
         ProductType: data['Product Type'],
         Status: data.Status,
     };
   }
+  // console.warn(`[mapDocToSheetRow - ${docId}] Could not map document. Data structure not recognized:`, JSON.stringify(data));
   return null; // If data is undefined or not in a known format
 }
 
