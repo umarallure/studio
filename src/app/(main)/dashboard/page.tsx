@@ -6,9 +6,6 @@ import { defaultCenterData, mockCenterData1, mockCenterData2 } from '@/lib/mock-
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// Popover and Calendar removed as filter is being removed
-// import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-// import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
@@ -17,9 +14,9 @@ import { getTotalPointsInRange } from '@/ai/flows/get-total-points-in-range-flow
 import { getDailySubmissionsInRange } from '@/ai/flows/get-daily-submissions-in-range-flow';
 import { getDailyNegativeStatusRateInRange } from '@/ai/flows/get-daily-negative-status-rate-in-range-flow';
 
-import { format as formatDate, subDays } from 'date-fns'; // addDays removed as dynamic range is gone
+import { format as formatDate, subDays, isValid, parseISO } from 'date-fns'; 
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Sigma, Award, CalendarDays } from 'lucide-react'; 
+import { Loader2, Lock, Sigma, Award, CalendarDays, Info } from 'lucide-react'; 
 import MetricCard from '@/components/dashboard/MetricCard';
 import DailySubmissionsBarChart from '@/components/dashboard/DailySubmissionsBarChart';
 import DailyStatusRateLineChart from '@/components/dashboard/DailyStatusRateLineChart';
@@ -38,7 +35,7 @@ const availableCentersForAdmin: AvailableCenter[] = [
   { id: 'team2_view', name: 'Team 2 View', baseMockData: mockCenterData2, leadVenderFilterName: 'Team 2' },
 ];
 
-const FIXED_DATE_RANGE_DAYS = 30; // Fetch data for the last 30 days
+const FIXED_DATE_RANGE_DAYS = 30; 
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -48,12 +45,6 @@ export default function DashboardPage() {
   const [adminSelectedCenterId, setAdminSelectedCenterId] = useState<string>('all');
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true); 
   
-  // Date range state removed
-  // const [dateRange, setDateRange] = useState<DateRange | undefined>({
-  //   from: subDays(new Date(), 29), 
-  //   to: new Date(),
-  // });
-
   const [totalPointsInRange, setTotalPointsInRange] = useState<number | null>(null);
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
   const [dailySubmissionsChartData, setDailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
@@ -74,7 +65,6 @@ export default function DashboardPage() {
     console.log('[DashboardPage] fetchAndDisplayMetrics called. Filter:', filterName, 'UI Name:', uiCenterName);
     setIsLoadingMetrics(true);
 
-    // Use fixed date range
     const startDateStr = formatDate(fixedDateRange.from, 'yyyy-MM-dd');
     const endDateStr = formatDate(fixedDateRange.to, 'yyyy-MM-dd');
     const dayBeforeEndDateStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
@@ -100,11 +90,20 @@ export default function DashboardPage() {
       
       console.log('[DashboardPage] API - Total Points (Fixed Range):', totalPointsResult);
       console.log('[DashboardPage] API - Daily Submissions In Range (Fixed Range):', dailySubmissionsInRangeResult);
-      console.log('[DashboardPage] API - Daily Negative Rate (Fixed Range):', dailyNegativeRateResult);
-
       setTotalPointsInRange(totalPointsResult.totalPoints);
-      setDailySubmissionsChartData(dailySubmissionsInRangeResult.dailySubmissions);
-      setDailyNegativeRateChartData(dailyNegativeRateResult.dailyRates);
+
+      // Validate and filter dailySubmissionsInRangeResult
+      const validDailySubmissions = dailySubmissionsInRangeResult.dailySubmissions.filter(
+        dp => dp.date && isValid(parseISO(dp.date)) && typeof dp.count === 'number'
+      );
+      setDailySubmissionsChartData(validDailySubmissions);
+      console.log('[DashboardPage] API - Validated Daily Submissions for Chart:', validDailySubmissions.length, 'items');
+
+
+      const validNegativeRates = dailyNegativeRateResult.dailyRates.filter(
+        dp => dp.date && isValid(parseISO(dp.date)) && typeof dp.rate === 'number'
+      );
+      setDailyNegativeRateChartData(validNegativeRates);
 
       setDailySubmissionsForCard({
         current: submissionsForLastDayResult.submissionCount,
@@ -126,7 +125,7 @@ export default function DashboardPage() {
         centerName: uiCenterName, 
         dailySales: { 
           ...prev.dailySales, 
-          title: `Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`, // Reflects last day of fixed range
+          title: `Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`, 
           value: submissionsForLastDayResult.submissionCount,
           previousValue: submissionsForDayBeforeLastDayResult.submissionCount,
           trend: submissionsForLastDayResult.submissionCount > submissionsForDayBeforeLastDayResult.submissionCount ? 'up' 
@@ -164,14 +163,14 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast, fixedDateRange.from, fixedDateRange.to]); // dependency on fixedDateRange parts
+  }, [toast, fixedDateRange.from, fixedDateRange.to]); 
 
   useEffect(() => {
     if (isAuthLoading) { 
       setIsLoadingMetrics(true); 
       return;
     }
-    if (!user) { // Removed dateRange check here
+    if (!user) { 
         setIsLoadingMetrics(false);
         return;
     }
@@ -194,20 +193,22 @@ export default function DashboardPage() {
       centerToLoad = {
         id: 'general_user_view',
         name: 'Your Dashboard (General)',
-        baseMockData: defaultCenterData,
+        baseMocData: defaultCenterData,
         leadVenderFilterName: null
       };
        if (user.role === 'teamMember' && !user.teamNameForFilter) {
+        setDailySubmissionsChartData([]); // Clear chart data if no team filter
+        setDailyNegativeRateChartData([]);
         toast({
-          title: "Team Data Note",
-          description: "Your account is not assigned to a specific team filter. Showing general data.",
+          title: "Data View Restricted",
+          description: "Your account is not assigned to a specific team. Some metrics may not be available.",
           variant: "default",
         });
       }
     }
     fetchAndDisplayMetrics(centerToLoad.leadVenderFilterName, centerToLoad.baseMockData, centerToLoad.name);
 
-  }, [user, isAuthLoading, adminSelectedCenterId, fetchAndDisplayMetrics, toast]); // dateRange removed from dependencies
+  }, [user, isAuthLoading, adminSelectedCenterId, fetchAndDisplayMetrics, toast]); 
 
 
   const handleAdminCenterChange = (newCenterId: string) => {
@@ -282,10 +283,9 @@ export default function DashboardPage() {
             {user?.role === 'teamMember' && (
               <div className="flex items-center text-xs text-muted-foreground p-2 rounded-md bg-muted whitespace-nowrap">
                 <Lock className="h-3 w-3 mr-1.5 text-primary" />
-                Team View Locked
+                {user.teamNameForFilter ? `Viewing data for ${user.teamNameForFilter}` : "Team View (Unassigned)"}
               </div>
             )}
-            {/* Date Range Picker Removed - Displaying fixed range text instead */}
             <div className="flex items-center text-sm p-2 rounded-md bg-input text-foreground border border-border">
                 <CalendarDays className="mr-2 h-4 w-4 text-muted-foreground" />
                 Data for: {fixedRangeText}
@@ -315,24 +315,38 @@ export default function DashboardPage() {
       <Card className="shadow-lg">
         <CardHeader>
             <CardTitle className="font-headline text-xl text-primary">Charts & Trends</CardTitle>
-            <CardDescription>Visualizing performance over the last {FIXED_DATE_RANGE_DAYS} days: {fixedRangeText}</CardDescription>
+            <CardDescription>Visualizing performance over the last {FIXED_DATE_RANGE_DAYS} days for {pageTitle}: {fixedRangeText}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
             <DailySubmissionsBarChart 
                 data={dailySubmissionsChartData} 
                 isLoading={isLoadingMetrics}
                 title="Daily Submissions Volume"
-                description={`Total 'Submitted' entries per day for ${pageTitle}.`}
+                description={`Total 'Submitted' entries per day.`}
             />
             <DailyStatusRateLineChart 
                 data={dailyNegativeRateChartData} 
                 isLoading={isLoadingMetrics}
                 title="Daily 'Rejected' Entry Rate"
-                description={`Percentage of entries marked 'Rejected' each day for ${pageTitle}.`}
+                description={`Percentage of entries marked 'Rejected' each day.`}
             />
         </CardContent>
       </Card>
-
+       {(user?.role === 'teamMember' && !user.teamNameForFilter && !isLoadingMetrics && !isAuthLoading) && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center text-orange-600 dark:text-orange-400">
+              <Info className="mr-2 h-5 w-5" /> Data View Restricted
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">
+              Your account is not currently assigned to a specific team, so team-specific dashboard data (including charts) cannot be displayed. 
+              Please contact an administrator if you believe this is an error.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
