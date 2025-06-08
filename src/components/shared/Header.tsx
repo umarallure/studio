@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
-import { Gamepad2, LogOut, LayoutDashboard, Trophy, FileText, PlusSquare, Sitemap } from 'lucide-react';
+import { Gamepad2, LogOut, LayoutDashboard, Trophy, FileText, PlusSquare, GitBranch } from 'lucide-react'; // Changed Sitemap to GitBranch
 import { cn } from '@/lib/utils';
 
 export default function Header() {
@@ -14,7 +14,7 @@ export default function Header() {
 
   const navItemsBase = [
     { href: '/bracket', label: 'Bracket', icon: Trophy, adminOnly: false },
-    { href: '/advanced-bracket', label: 'Adv. Bracket', icon: Sitemap, adminOnly: false },
+    { href: '/advanced-bracket', label: 'Adv. Bracket', icon: GitBranch, adminOnly: false }, // Changed Sitemap to GitBranch
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
     { href: '/sheet-data', label: 'Sheet Data', icon: FileText, adminOnly: false },
   ];
@@ -29,7 +29,6 @@ export default function Header() {
       items = items.concat(adminNavItems);
     }
     // Sort items: put admin items last or maintain a specific order if desired
-    // For now, simple concatenation is fine. If order matters, implement sorting.
     items.sort((a, b) => {
         if (a.href === '/bracket') return -1; // Bracket first
         if (b.href === '/bracket') return 1;
