@@ -1,6 +1,6 @@
 
 import type { CenterDashboardData, TopAgentMetric } from './types';
-import { TrendingUp, TrendingDown, ShieldCheck, Target, Users, Award } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, ClipboardList, Award } from 'lucide-react'; // Replaced ShieldCheck with Users, Target with ClipboardList
 
 export const tournamentPrize = 'Grand Prize: Company-Wide Recognition and a Team Celebration Budget!';
 
@@ -25,32 +25,25 @@ export const mockCenterData1: CenterDashboardData = {
     icon: TrendingUp,
     description: 'Total submissions today for Team 1.',
   },
-  chargebackPercentage: {
+  chargebackPercentage: { // This is a mock, less critical now
     id: 'chargeback',
-    title: 'Chargeback % (Prev. Month)',
-    value: '3.5',
-    previousValue: '4.1',
-    unit: '%',
-    trend: 'down',
-    icon: ShieldCheck,
-    description: 'Lower is better. Target < 5%.',
+    title: 'Placeholder Metric 1',
+    value: 'N/A',
+    unit: '',
+    trend: 'neutral',
+    icon: Users, // Changed icon
+    description: 'Example placeholder metric.',
   },
-  flowThroughRate: {
-    id: 'flowThrough',
-    title: 'Flow-Through Rate',
-    value: '85',
-    previousValue: '82',
-    unit: '%',
-    trend: 'up',
-    icon: Target,
-    description: 'Approved submissions / Total submissions. Higher is better.',
+  totalSubmittedLast30Days: {
+    id: 'totalSubmitted30d',
+    title: 'Total Submitted (Last 30 Days)',
+    value: 0, // Will be dynamically calculated
+    unit: '',
+    trend: 'neutral',
+    icon: ClipboardList,
+    description: 'Total "Submitted" entries in the last 30 days for Team 1.',
   },
   topAgentLastMonth: { ...defaultTopAgentMetric, agentName: "Agent T1" },
-  entryStatusChartData: [ // Example Data
-    { name: 'Submitted', value: 70, fill: 'var(--chart-1)' },
-    { name: 'Approved', value: 20, fill: 'var(--chart-2)' },
-    { name: 'Pending', value: 10, fill: 'var(--chart-3)' },
-  ],
 };
 
 export const mockCenterData2: CenterDashboardData = {
@@ -65,33 +58,25 @@ export const mockCenterData2: CenterDashboardData = {
     icon: TrendingDown,
     description: 'Total submissions today for Team 2.',
   },
-  chargebackPercentage: {
+  chargebackPercentage: { // Mock
     id: 'chargeback',
-    title: 'Chargeback % (Prev. Month)',
-    value: '6.2',
-    previousValue: '5.8',
-    unit: '%',
-    trend: 'up',
-    icon: ShieldCheck,
-    description: 'Lower is better. Target < 5%.',
+    title: 'Placeholder Metric 1',
+    value: 'N/A',
+    unit: '',
+    trend: 'neutral',
+    icon: Users,
+    description: 'Example placeholder metric.',
   },
-  flowThroughRate: {
-    id: 'flowThrough',
-    title: 'Flow-Through Rate',
-    value: '70',
-    previousValue: '75',
-    unit: '%',
-    trend: 'down',
-    icon: Target,
-    description: 'Approved submissions / Total submissions. Higher is better.',
+  totalSubmittedLast30Days: {
+    id: 'totalSubmitted30d',
+    title: 'Total Submitted (Last 30 Days)',
+    value: 0, // Will be dynamically calculated
+    unit: '',
+    trend: 'neutral',
+    icon: ClipboardList,
+    description: 'Total "Submitted" entries in the last 30 days for Team 2.',
   },
   topAgentLastMonth: { ...defaultTopAgentMetric, agentName: "Agent T2" },
-  entryStatusChartData: [
-    { name: 'Submitted', value: 60, fill: 'var(--chart-1)' },
-    { name: 'Approved', value: 15, fill: 'var(--chart-2)' },
-    { name: 'Rejected', value: 5, fill: 'var(--chart-4)' },
-    { name: 'Pending', value: 20, fill: 'var(--chart-3)' },
-  ],
 };
 
 export const defaultCenterData: CenterDashboardData = {
@@ -103,29 +88,26 @@ export const defaultCenterData: CenterDashboardData = {
     previousValue: 0,
     unit: 'units',
     trend: 'neutral',
-    icon: Users,
+    icon: Users, // Consistent icon
     description: 'Total submissions today.',
   },
-  chargebackPercentage: {
+  chargebackPercentage: { // Mock
     id: 'chargeback',
-    title: 'Chargeback % (Prev. Month)',
+    title: 'Placeholder Metric 1',
     value: '0',
-    previousValue: '0',
-    unit: '%',
+    unit: '',
     trend: 'neutral',
-    icon: ShieldCheck,
-    description: 'Lower is better. Target < 5%.',
+    icon: Users,
+    description: 'Example placeholder metric.',
   },
-  flowThroughRate: {
-    id: 'flowThrough',
-    title: 'Flow-Through Rate',
-    value: '0',
-    previousValue: '0',
-    unit: '%',
+  totalSubmittedLast30Days: {
+    id: 'totalSubmitted30d',
+    title: 'Total Submitted (Last 30 Days)',
+    value: 0,
+    unit: '',
     trend: 'neutral',
-    icon: Target,
-    description: 'Approved submissions / Total submissions. Higher is better.',
+    icon: ClipboardList,
+    description: 'Total "Submitted" entries in the last 30 days.',
   },
   topAgentLastMonth: defaultTopAgentMetric,
-  entryStatusChartData: [],
 };

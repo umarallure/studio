@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { CenterDashboardData, TopAgentMetric, ChartSegment } from '@/lib/types';
+import type { CenterDashboardData, TopAgentMetric, ChartSegment, CenterMetric } from '@/lib/types';
 import { defaultCenterData, mockCenterData1, mockCenterData2 } from '@/lib/mock-data';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useCallback, useMemo } from 'react';
@@ -14,7 +14,7 @@ import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-sta
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Award, CalendarDays, Info, Target } from 'lucide-react';
+import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users } from 'lucide-react'; // Changed Target to ClipboardList, ShieldCheck to Users
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -33,6 +33,7 @@ const availableCentersForAdmin: AvailableCenter[] = [
 ];
 
 const FIXED_DATE_RANGE_DAYS = 30;
+const TEAM1_FILTER_NAME = "Team 1"; // Constant for Team 1 filter
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -44,7 +45,9 @@ export default function DashboardPage() {
 
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
-  const [calculatedFlowThroughRate, setCalculatedFlowThroughRate] = useState<number>(0);
+  
+  // Renamed from calculatedFlowThroughRate to totalSubmittedLast30DaysValue
+  const [totalSubmittedLast30DaysValue, setTotalSubmittedLast30DaysValue] = useState<number>(0);
 
 
   const fixedDateRange = useMemo(() => {
@@ -54,7 +57,7 @@ export default function DashboardPage() {
       to: toDate,
       from: fromDate,
     };
-  }, []);
+  }, []); // Empty dependency array - this will now be stable
 
   const fetchAndDisplayMetrics = useCallback(async (
     filterNameForCards: string | null,
@@ -98,31 +101,22 @@ export default function DashboardPage() {
       };
       setTopAgentData(newTopAgentData);
 
-      // Calculate Flow-Through Rate
-      let approvedCount = 0;
-      let submittedCount = 0;
-      let rejectedCount = 0;
-
+      // Calculate Total Submitted (Last 30 Days)
+      let submittedCountLast30Days = 0;
       entryStatsResult.forEach((segment: ChartSegment) => {
-        if (segment.name === "Approved") approvedCount = segment.value;
-        if (segment.name === "Submitted") submittedCount = segment.value;
-        if (segment.name === "Rejected") rejectedCount = segment.value;
+        if (segment.name === "Submitted") submittedCountLast30Days = segment.value;
       });
+      setTotalSubmittedLast30DaysValue(submittedCountLast30Days);
       
-      const flowThroughDenominator = submittedCount + approvedCount + rejectedCount;
-      const newFlowThroughRate = flowThroughDenominator > 0
-        ? parseFloat(((approvedCount / flowThroughDenominator) * 100).toFixed(1))
-        : 0;
-      setCalculatedFlowThroughRate(newFlowThroughRate);
-
       const fixedRangeTextShort = `Last ${FIXED_DATE_RANGE_DAYS}D`;
 
+      // Update displayedDashboardData with new values
       setDisplayedDashboardData(prev => ({
         ...prev,
         centerName: uiCenterName,
-        dailySales: {
-          ...prev.dailySales, // Keep base structure from mock/default
-          title: `Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`,
+        dailySales: { // "Daily Submissions" card
+          ...baseDataForUI.dailySales, 
+          title: `Daily Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`,
           value: submissionsForTodayResult.submissionCount,
           previousValue: submissionsForYesterdayResult.submissionCount,
           trend: submissionsForTodayResult.submissionCount > submissionsForYesterdayResult.submissionCount ? 'up'
@@ -130,19 +124,20 @@ export default function DashboardPage() {
                : 'neutral',
           description: filterNameForCards ? `For ${filterNameForCards}` : `Total for today`,
         },
-        chargebackPercentage: baseDataForUI.chargebackPercentage, // Still mock
-        flowThroughRate: { // Update this metric with calculated data
-            ...baseDataForUI.flowThroughRate, // Keep ID, icon etc.
-            title: `Flow-Through (${fixedRangeTextShort})`,
-            value: newFlowThroughRate,
-            unit: '%',
-            trend: 'neutral', // Or implement logic to compare to previous period or target
-            description: `Approved / (Submitted + Approved + Rejected)`,
-            icon: Target,
+        chargebackPercentage: baseDataForUI.chargebackPercentage, // Mock for now
+        // Updated card for "Total Submitted (Last 30 Days)"
+        totalSubmittedLast30Days: {
+            id: 'totalSubmitted30d',
+            title: `Total Submitted (${fixedRangeTextShort})`,
+            value: submittedCountLast30Days,
+            unit: '', // No unit for count
+            trend: 'neutral', // Or some logic if you want to compare this to a previous 30-day period
+            icon: ClipboardList,
+            description: `Total 'Submitted' entries in the last ${FIXED_DATE_RANGE_DAYS} days.`,
         },
       }));
 
-      console.log('[DashboardPage] Successfully updated UI data for:', uiCenterName, 'Flow-Through Rate:', newFlowThroughRate);
+      console.log(`[DashboardPage] Successfully updated UI data for: ${uiCenterName}. Total Submitted (30D): ${submittedCountLast30Days}`);
 
     } catch (error) {
       console.error("[DashboardPage] Failed to fetch dynamic dashboard metrics:", error);
@@ -151,21 +146,30 @@ export default function DashboardPage() {
         description: "Could not load all dynamic data. Displaying last known or default values.",
         variant: "destructive",
       });
+      // Resetting dynamic parts on error
       setDailySubmissionsForCard({current: 0, previous: 0});
       setTopAgentData(baseDataForUI.topAgentLastMonth || defaultCenterData.topAgentLastMonth!);
-      setCalculatedFlowThroughRate(0);
-       setDisplayedDashboardData(prev => ({
+      setTotalSubmittedLast30DaysValue(0);
+      setDisplayedDashboardData(prev => ({
         ...prev,
         centerName: uiCenterName,
         dailySales: { ...baseDataForUI.dailySales, value: 0, previousValue: 0, description: "Error loading live data." },
-        chargebackPercentage: baseDataForUI.chargebackPercentage,
-        flowThroughRate: { ...baseDataForUI.flowThroughRate, value: 0, description: "Error loading live data."},
+        chargebackPercentage: baseDataForUI.chargebackPercentage, // Mock
+        totalSubmittedLast30Days: { 
+          ...baseDataForUI.totalSubmittedLast30Days, // Use structure if defined, else default
+          id: 'totalSubmitted30d',
+          title: `Total Submitted (Last ${FIXED_DATE_RANGE_DAYS}D)`,
+          value: 0, 
+          unit: '',
+          icon: ClipboardList,
+          description: "Error loading live data."
+        },
       }));
     } finally {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast, fixedDateRange.to]);
+  }, [toast, fixedDateRange.to]); // fixedDateRange.to is stable due to useMemo
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -233,22 +237,37 @@ export default function DashboardPage() {
     ? (availableCentersForAdmin.find(c => c.id === adminSelectedCenterId)?.name || "Admin Dashboard")
     : (user?.teamNameForFilter ? `${user.teamNameForFilter} Dashboard` : "Team Dashboard"));
 
-  const metricsToDisplay = [
+  // Construct the metrics array for display
+  const metricsToDisplay: CenterMetric[] = [
     displayedDashboardData.dailySales,
     displayedDashboardData.chargebackPercentage, // This is still mock
-    displayedDashboardData.flowThroughRate, // Now dynamically calculated
   ];
+  
+  if (displayedDashboardData.totalSubmittedLast30Days) {
+    metricsToDisplay.push(displayedDashboardData.totalSubmittedLast30Days);
+  } else { // Fallback if totalSubmittedLast30Days is not yet in state
+     metricsToDisplay.push({
+        id: 'totalSubmitted30d',
+        title: `Total Submitted (Last ${FIXED_DATE_RANGE_DAYS}D)`,
+        value: totalSubmittedLast30DaysValue, // Use state directly if displayedDashboardData isn't updated yet
+        unit: '',
+        trend: 'neutral',
+        icon: ClipboardList,
+        description: `Total 'Submitted' entries in the last ${FIXED_DATE_RANGE_DAYS} days.`,
+     });
+  }
+
   if (topAgentData) {
      const topAgentCardMetric = {
         id: topAgentData.id,
         title: topAgentData.title,
         value: topAgentData.agentName || "N/A",
         unit: topAgentData.submissionCount > 0 ? ` (${topAgentData.submissionCount} subs)` : '',
-        trend: 'neutral' as 'neutral',
+        trend: 'neutral' as 'neutral', // Cast for type compatibility
         icon: topAgentData.icon || Award,
         description: topAgentData.description || `${topAgentData.submissionCount} submissions last month`,
      };
-     metricsToDisplay.push(topAgentCardMetric as any);
+     metricsToDisplay.push(topAgentCardMetric as any); // Cast as any if type conflict
   }
 
   const fixedRangeText = `Last ${FIXED_DATE_RANGE_DAYS} Days (${formatDate(fixedDateRange.from, "LLL d")} - ${formatDate(fixedDateRange.to, "LLL d")})`;
@@ -292,8 +311,8 @@ export default function DashboardPage() {
 
       {isLoadingMetrics && metricsToDisplay.every(m => (m.value === 0 || m.value === '...' || m.value === "N/A" || (typeof m.value === 'string' && parseFloat(m.value) === 0) )) ? (
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
-            {[1,2,3,4].map(i => (
-              <Card key={i} className="h-40 shadow-md flex items-center justify-center">
+            {metricsToDisplay.map(m => (
+              <Card key={m.id || Math.random()} className="h-40 shadow-md flex items-center justify-center">
                   <Loader2 className="h-10 w-10 animate-spin text-primary" />
               </Card>
             ))}

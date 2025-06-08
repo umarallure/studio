@@ -44,7 +44,7 @@ export interface TournamentData {
 export interface CenterMetric {
   id: string;
   title: string;
-  value: string | number; // This will be updated dynamically for daily submissions
+  value: string | number; 
   previousValue?: string | number;
   unit?: string;
   trend?: 'up' | 'down' | 'neutral';
@@ -58,22 +58,21 @@ export interface TopAgentMetric {
   agentName: string | null;
   submissionCount: number;
   icon?: React.ElementType;
-  description?: string; // e.g. "Submissions last month"
+  description?: string; 
 }
 
 export interface ChartSegment {
-  name: string; // e.g., Status name or ProductType name
-  value: number; // Count for this segment
-  fill: string; // CSS variable for color e.g., 'var(--chart-1)'
+  name: string; 
+  value: number; 
+  fill: string; 
 }
 
 export interface CenterDashboardData {
   centerName: string;
-  dailySales: CenterMetric; // This will now reflect the last day of the selected range
-  chargebackPercentage: CenterMetric; // Stays as "Prev. Month"
-  flowThroughRate: CenterMetric; // This might need re-evaluation or stay as an overall metric
-  topAgentLastMonth?: TopAgentMetric; // Stays as "Last Month"
-  // entryStatusChartData?: ChartSegment[]; // This was for a pie chart, removed
+  dailySales: CenterMetric; 
+  chargebackPercentage: CenterMetric; // Mock
+  totalSubmittedLast30Days?: CenterMetric; // New metric for total submitted count
+  topAgentLastMonth?: TopAgentMetric;
 }
 
 // New type for data from Sheet1Rows collection
@@ -130,18 +129,12 @@ export type EntryStatsByStatusForChartInput = {
 };
 export type EntryStatsByStatusForChartOutput = ChartSegment[];
 
-// --- New Genkit Flow Types ---
+
+// --- Daily Submissions In Range Flow (Removed, kept types for potential re-use) ---
 export interface DateRangeFilterInput {
   leadVenderFilter: string | null;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
-}
-
-export interface TotalPointsInRangeOutput {
-  totalPoints: number;
-  startDate: string;
-  endDate: string;
-  filterApplied: string | null;
 }
 
 export interface DailyChartDataPoint {
@@ -154,6 +147,8 @@ export interface DailySubmissionsInRangeOutput {
   endDate: string;
   filterApplied: string | null;
 }
+// --- End Removed Flow Types ---
+
 
 export interface RateChartDataPoint {
   date: string; // YYYY-MM-DD
