@@ -10,12 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
 import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
 import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-status-for-chart-flow';
-import { getTeamSubmissionsLast30Days } from '@/ai/flows/get-team-submissions-last-30-days-flow';
+// import { getTeamSubmissionsLast30Days } from '@/ai/flows/get-team-submissions-last-30-days-flow'; // Removed import
 
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users, Bug } from 'lucide-react';
+import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users, Bug, Target } from 'lucide-react';
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -48,9 +48,10 @@ export default function DashboardPage() {
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
   const [totalSubmittedLast30DaysValue, setTotalSubmittedLast30DaysValue] = useState<number>(0);
 
-  const [debugLast30DaysSubmittedCount, setDebugLast30DaysSubmittedCount] = useState<number | null>(null);
-  const [debugFilterApplied, setDebugFilterApplied] = useState<string | null>(null);
-  const [debugDateRange, setDebugDateRange] = useState<{start: string, end: string} | null>(null);
+  // Removed state variables for the debug card
+  // const [debugLast30DaysSubmittedCount, setDebugLast30DaysSubmittedCount] = useState<number | null>(null);
+  // const [debugFilterApplied, setDebugFilterApplied] = useState<string | null>(null);
+  // const [debugDateRange, setDebugDateRange] = useState<{start: string, end: string} | null>(null);
 
 
   const fixedDateRange = useMemo(() => {
@@ -69,7 +70,8 @@ export default function DashboardPage() {
   ) => {
     console.log('[DashboardPage] fetchAndDisplayMetrics called. Cards Filter:', filterNameForCards, 'UI Name:', uiCenterName);
     setIsLoadingMetrics(true);
-    setDebugLast30DaysSubmittedCount(null); // Reset debug state on new fetch
+    // Reset debug state not needed anymore
+    // setDebugLast30DaysSubmittedCount(null); 
 
     const todayStr = formatDate(fixedDateRange.to, 'yyyy-MM-dd');
     const yesterdayStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
@@ -80,7 +82,7 @@ export default function DashboardPage() {
         submissionsForYesterdayResult,
         topAgentResult,
         entryStatsResult,
-        debugSubmissionsResult, 
+        // debugSubmissionsResult, // Removed call to debug flow
       ] = await Promise.all([
         getDailySubmissions({ targetDate: todayStr, leadVenderFilter: filterNameForCards }),
         getDailySubmissions({ targetDate: yesterdayStr, leadVenderFilter: filterNameForCards }),
@@ -89,7 +91,7 @@ export default function DashboardPage() {
             leadVenderFilter: filterNameForCards, 
             daysToCover: FIXED_DATE_RANGE_DAYS 
         }),
-        getTeamSubmissionsLast30Days({ leadVenderFilter: filterNameForCards }), // Debug flow call
+        // getTeamSubmissionsLast30Days({ leadVenderFilter: filterNameForCards }), // Removed call
       ]);
 
       setDailySubmissionsForCard({
@@ -136,7 +138,7 @@ export default function DashboardPage() {
         totalSubmittedLast30Days: {
             id: 'totalSubmitted30d',
             title: `Total Submitted (${fixedRangeTextShort})`,
-            value: submittedCountLast30Days,
+            value: submittedCountLast30Days, // This uses the result from getEntryStatsByStatusForChart
             unit: '', 
             trend: 'neutral', 
             icon: ClipboardList,
@@ -144,10 +146,11 @@ export default function DashboardPage() {
         },
       }));
 
-      console.log(`[DashboardPage] Debug Flow Result - Last 30D Submitted Count for '${debugSubmissionsResult.filterApplied || 'All'}': ${debugSubmissionsResult.submissionCount} (Range: ${debugSubmissionsResult.startDate} - ${debugSubmissionsResult.endDate})`);
-      setDebugLast30DaysSubmittedCount(debugSubmissionsResult.submissionCount);
-      setDebugFilterApplied(debugSubmissionsResult.filterApplied);
-      setDebugDateRange({start: debugSubmissionsResult.startDate, end: debugSubmissionsResult.endDate });
+      // Removed debug logging for the removed flow
+      // console.log(`[DashboardPage] Debug Flow Result - Last 30D Submitted Count for '${debugSubmissionsResult.filterApplied || 'All'}': ${debugSubmissionsResult.submissionCount} (Range: ${debugSubmissionsResult.startDate} - ${debugSubmissionsResult.endDate})`);
+      // setDebugLast30DaysSubmittedCount(debugSubmissionsResult.submissionCount);
+      // setDebugFilterApplied(debugSubmissionsResult.filterApplied);
+      // setDebugDateRange({start: debugSubmissionsResult.startDate, end: debugSubmissionsResult.endDate });
 
 
       console.log(`[DashboardPage] Successfully updated UI data for: ${uiCenterName}. Total Submitted (30D from entryStats): ${submittedCountLast30Days}`);
@@ -177,7 +180,7 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast, fixedDateRange.to]);
+  }, [toast, fixedDateRange.to, fixedDateRange.from]); // Added fixedDateRange.from as a dependency
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -350,32 +353,9 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Debug Card */}
-      {debugLast30DaysSubmittedCount !== null && (
-        <Card className="md:col-span-2 lg:col-span-4 mt-6 border-dashed border-blue-500 bg-blue-500/5">
-          <CardHeader>
-            <CardTitle className="text-blue-700 dark:text-blue-400 flex items-center">
-                <Bug className="mr-2 h-5 w-5"/> Debug: Last 30 Days Submitted Count
-            </CardTitle>
-            <CardDescription className="text-blue-600 dark:text-blue-300">
-              Direct output from the <code>getTeamSubmissionsLast30Days</code> flow. 
-              {debugDateRange && `Range: ${debugDateRange.start} to ${debugDateRange.end}.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-blue-700 dark:text-blue-300">
-            <p className="text-sm">
-              <span className="font-semibold">Filter Applied:</span> {debugFilterApplied || "All Teams (No Filter Applied in Flow)"}
-            </p>
-            <p className="text-2xl font-bold mt-1">
-              <span className="font-semibold">Count:</span> {debugLast30DaysSubmittedCount === -1 ? "Error in flow" : debugLast30DaysSubmittedCount}
-            </p>
-            <p className="text-xs text-blue-500 dark:text-blue-400 mt-2">
-              This card is for verifying the backend query that specifically counts 'Submitted' entries
-              within the last 30 days for the applied filter. Check Genkit console logs for '[FlowInternal TeamSubmissions30D]' for query details.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Debug Card Removed */}
     </div>
   );
 }
+
+    
