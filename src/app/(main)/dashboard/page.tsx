@@ -10,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
 import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
 import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-status-for-chart-flow';
+import { getTeamSubmissionsLast30Days } from '@/ai/flows/get-team-submissions-last-30-days-flow';
 
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users } from 'lucide-react'; // Changed Target to ClipboardList, ShieldCheck to Users
+import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users, Bug } from 'lucide-react';
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -33,7 +34,7 @@ const availableCentersForAdmin: AvailableCenter[] = [
 ];
 
 const FIXED_DATE_RANGE_DAYS = 30;
-const TEAM1_FILTER_NAME = "Team 1"; // Constant for Team 1 filter
+const TEAM1_FILTER_NAME = "Team 1"; 
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -45,9 +46,11 @@ export default function DashboardPage() {
 
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
-  
-  // Renamed from calculatedFlowThroughRate to totalSubmittedLast30DaysValue
   const [totalSubmittedLast30DaysValue, setTotalSubmittedLast30DaysValue] = useState<number>(0);
+
+  const [debugLast30DaysSubmittedCount, setDebugLast30DaysSubmittedCount] = useState<number | null>(null);
+  const [debugFilterApplied, setDebugFilterApplied] = useState<string | null>(null);
+  const [debugDateRange, setDebugDateRange] = useState<{start: string, end: string} | null>(null);
 
 
   const fixedDateRange = useMemo(() => {
@@ -57,7 +60,7 @@ export default function DashboardPage() {
       to: toDate,
       from: fromDate,
     };
-  }, []); // Empty dependency array - this will now be stable
+  }, []); 
 
   const fetchAndDisplayMetrics = useCallback(async (
     filterNameForCards: string | null,
@@ -66,6 +69,7 @@ export default function DashboardPage() {
   ) => {
     console.log('[DashboardPage] fetchAndDisplayMetrics called. Cards Filter:', filterNameForCards, 'UI Name:', uiCenterName);
     setIsLoadingMetrics(true);
+    setDebugLast30DaysSubmittedCount(null); // Reset debug state on new fetch
 
     const todayStr = formatDate(fixedDateRange.to, 'yyyy-MM-dd');
     const yesterdayStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
@@ -76,6 +80,7 @@ export default function DashboardPage() {
         submissionsForYesterdayResult,
         topAgentResult,
         entryStatsResult,
+        debugSubmissionsResult, 
       ] = await Promise.all([
         getDailySubmissions({ targetDate: todayStr, leadVenderFilter: filterNameForCards }),
         getDailySubmissions({ targetDate: yesterdayStr, leadVenderFilter: filterNameForCards }),
@@ -84,6 +89,7 @@ export default function DashboardPage() {
             leadVenderFilter: filterNameForCards, 
             daysToCover: FIXED_DATE_RANGE_DAYS 
         }),
+        getTeamSubmissionsLast30Days({ leadVenderFilter: filterNameForCards }), // Debug flow call
       ]);
 
       setDailySubmissionsForCard({
@@ -101,20 +107,19 @@ export default function DashboardPage() {
       };
       setTopAgentData(newTopAgentData);
 
-      // Calculate Total Submitted (Last 30 Days)
       let submittedCountLast30Days = 0;
-      entryStatsResult.forEach((segment: ChartSegment) => {
-        if (segment.name === "Submitted") submittedCountLast30Days = segment.value;
-      });
+      const submittedStat = entryStatsResult.find((segment: ChartSegment) => segment.name === "Submitted");
+      if (submittedStat) {
+          submittedCountLast30Days = submittedStat.value;
+      }
       setTotalSubmittedLast30DaysValue(submittedCountLast30Days);
       
       const fixedRangeTextShort = `Last ${FIXED_DATE_RANGE_DAYS}D`;
 
-      // Update displayedDashboardData with new values
       setDisplayedDashboardData(prev => ({
         ...prev,
         centerName: uiCenterName,
-        dailySales: { // "Daily Submissions" card
+        dailySales: { 
           ...baseDataForUI.dailySales, 
           title: `Daily Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`,
           value: submissionsForTodayResult.submissionCount,
@@ -124,20 +129,28 @@ export default function DashboardPage() {
                : 'neutral',
           description: filterNameForCards ? `For ${filterNameForCards}` : `Total for today`,
         },
-        chargebackPercentage: baseDataForUI.chargebackPercentage, // Mock for now
-        // Updated card for "Total Submitted (Last 30 Days)"
+        chargebackPercentage: {
+            ...baseDataForUI.chargebackPercentage,
+            title: "Placeholder Metric 1"
+        }, 
         totalSubmittedLast30Days: {
             id: 'totalSubmitted30d',
             title: `Total Submitted (${fixedRangeTextShort})`,
             value: submittedCountLast30Days,
-            unit: '', // No unit for count
-            trend: 'neutral', // Or some logic if you want to compare this to a previous 30-day period
+            unit: '', 
+            trend: 'neutral', 
             icon: ClipboardList,
             description: `Total 'Submitted' entries in the last ${FIXED_DATE_RANGE_DAYS} days.`,
         },
       }));
 
-      console.log(`[DashboardPage] Successfully updated UI data for: ${uiCenterName}. Total Submitted (30D): ${submittedCountLast30Days}`);
+      console.log(`[DashboardPage] Debug Flow Result - Last 30D Submitted Count for '${debugSubmissionsResult.filterApplied || 'All'}': ${debugSubmissionsResult.submissionCount} (Range: ${debugSubmissionsResult.startDate} - ${debugSubmissionsResult.endDate})`);
+      setDebugLast30DaysSubmittedCount(debugSubmissionsResult.submissionCount);
+      setDebugFilterApplied(debugSubmissionsResult.filterApplied);
+      setDebugDateRange({start: debugSubmissionsResult.startDate, end: debugSubmissionsResult.endDate });
+
+
+      console.log(`[DashboardPage] Successfully updated UI data for: ${uiCenterName}. Total Submitted (30D from entryStats): ${submittedCountLast30Days}`);
 
     } catch (error) {
       console.error("[DashboardPage] Failed to fetch dynamic dashboard metrics:", error);
@@ -146,7 +159,6 @@ export default function DashboardPage() {
         description: "Could not load all dynamic data. Displaying last known or default values.",
         variant: "destructive",
       });
-      // Resetting dynamic parts on error
       setDailySubmissionsForCard({current: 0, previous: 0});
       setTopAgentData(baseDataForUI.topAgentLastMonth || defaultCenterData.topAgentLastMonth!);
       setTotalSubmittedLast30DaysValue(0);
@@ -154,14 +166,10 @@ export default function DashboardPage() {
         ...prev,
         centerName: uiCenterName,
         dailySales: { ...baseDataForUI.dailySales, value: 0, previousValue: 0, description: "Error loading live data." },
-        chargebackPercentage: baseDataForUI.chargebackPercentage, // Mock
+        chargebackPercentage: baseDataForUI.chargebackPercentage, 
         totalSubmittedLast30Days: { 
-          ...baseDataForUI.totalSubmittedLast30Days, // Use structure if defined, else default
-          id: 'totalSubmitted30d',
-          title: `Total Submitted (Last ${FIXED_DATE_RANGE_DAYS}D)`,
+          ...(baseDataForUI.totalSubmittedLast30Days || defaultCenterData.totalSubmittedLast30Days!), 
           value: 0, 
-          unit: '',
-          icon: ClipboardList,
           description: "Error loading live data."
         },
       }));
@@ -169,7 +177,7 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast, fixedDateRange.to]); // fixedDateRange.to is stable due to useMemo
+  }, [toast, fixedDateRange.to]);
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -237,19 +245,18 @@ export default function DashboardPage() {
     ? (availableCentersForAdmin.find(c => c.id === adminSelectedCenterId)?.name || "Admin Dashboard")
     : (user?.teamNameForFilter ? `${user.teamNameForFilter} Dashboard` : "Team Dashboard"));
 
-  // Construct the metrics array for display
   const metricsToDisplay: CenterMetric[] = [
     displayedDashboardData.dailySales,
-    displayedDashboardData.chargebackPercentage, // This is still mock
+    displayedDashboardData.chargebackPercentage, 
   ];
   
   if (displayedDashboardData.totalSubmittedLast30Days) {
     metricsToDisplay.push(displayedDashboardData.totalSubmittedLast30Days);
-  } else { // Fallback if totalSubmittedLast30Days is not yet in state
+  } else { 
      metricsToDisplay.push({
         id: 'totalSubmitted30d',
         title: `Total Submitted (Last ${FIXED_DATE_RANGE_DAYS}D)`,
-        value: totalSubmittedLast30DaysValue, // Use state directly if displayedDashboardData isn't updated yet
+        value: totalSubmittedLast30DaysValue, 
         unit: '',
         trend: 'neutral',
         icon: ClipboardList,
@@ -263,11 +270,11 @@ export default function DashboardPage() {
         title: topAgentData.title,
         value: topAgentData.agentName || "N/A",
         unit: topAgentData.submissionCount > 0 ? ` (${topAgentData.submissionCount} subs)` : '',
-        trend: 'neutral' as 'neutral', // Cast for type compatibility
+        trend: 'neutral' as 'neutral', 
         icon: topAgentData.icon || Award,
         description: topAgentData.description || `${topAgentData.submissionCount} submissions last month`,
      };
-     metricsToDisplay.push(topAgentCardMetric as any); // Cast as any if type conflict
+     metricsToDisplay.push(topAgentCardMetric as any); 
   }
 
   const fixedRangeText = `Last ${FIXED_DATE_RANGE_DAYS} Days (${formatDate(fixedDateRange.from, "LLL d")} - ${formatDate(fixedDateRange.to, "LLL d")})`;
@@ -338,6 +345,33 @@ export default function DashboardPage() {
             <p className="text-muted-foreground">
               Your account is not currently assigned to a specific team, so team-specific dashboard data cannot be displayed.
               Please contact an administrator if you believe this is an error.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Debug Card */}
+      {debugLast30DaysSubmittedCount !== null && (
+        <Card className="md:col-span-2 lg:col-span-4 mt-6 border-dashed border-blue-500 bg-blue-500/5">
+          <CardHeader>
+            <CardTitle className="text-blue-700 dark:text-blue-400 flex items-center">
+                <Bug className="mr-2 h-5 w-5"/> Debug: Last 30 Days Submitted Count
+            </CardTitle>
+            <CardDescription className="text-blue-600 dark:text-blue-300">
+              Direct output from the <code>getTeamSubmissionsLast30Days</code> flow. 
+              {debugDateRange && `Range: ${debugDateRange.start} to ${debugDateRange.end}.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-blue-700 dark:text-blue-300">
+            <p className="text-sm">
+              <span className="font-semibold">Filter Applied:</span> {debugFilterApplied || "All Teams (No Filter Applied in Flow)"}
+            </p>
+            <p className="text-2xl font-bold mt-1">
+              <span className="font-semibold">Count:</span> {debugLast30DaysSubmittedCount === -1 ? "Error in flow" : debugLast30DaysSubmittedCount}
+            </p>
+            <p className="text-xs text-blue-500 dark:text-blue-400 mt-2">
+              This card is for verifying the backend query that specifically counts 'Submitted' entries
+              within the last 30 days for the applied filter. Check Genkit console logs for '[FlowInternal TeamSubmissions30D]' for query details.
             </p>
           </CardContent>
         </Card>
