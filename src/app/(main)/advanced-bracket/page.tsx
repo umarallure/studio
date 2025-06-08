@@ -14,9 +14,9 @@ import type { TournamentSettings, Matchup as MatchupType } from '@/lib/types';
 import { Loader2, AlertTriangle, Info } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
-// Define types for the AdvancedBracket's specific data structure
+// Define types for the AdvancedBracket's specific data structure (for static data initially)
 interface AdvancedTeam {
-  name: string | null; // Allow null for TBD
+  name: string | null; 
   score?: number;
 }
 
@@ -24,16 +24,13 @@ interface AdvancedSeedProps {
   id: number | string;
   date: string;
   teams: AdvancedTeam[];
-  // Winner is derived from scores in CustomSeedInternal
 }
 
 interface AdvancedRound extends ReactBracketsRoundProps {
-  title: string; // Ensure title is always string
+  title: string; 
   seeds: AdvancedSeedProps[];
 }
 
-
-// --- Static Data (will be replaced by dynamic data later) ---
 const staticRoundsData: AdvancedRound[] = [
     // Left side - Quarter Finals
     {
@@ -64,7 +61,7 @@ const staticRoundsData: AdvancedRound[] = [
     {
       title: "Championship",
       seeds: [
-        { id: 8, date: "Wed Jul 15 2023", teams: [{ name: "Team 5" /*Winner L*/, score: 4 }, { name: "Team 9" /*Winner R*/, score: 3 }] },
+        { id: 8, date: "Wed Jul 15 2023", teams: [{ name: "Team 5", score: 4 }, { name: "Team 9", score: 3 }] },
       ],
     },
     // Right side - Finals
@@ -78,8 +75,8 @@ const staticRoundsData: AdvancedRound[] = [
     {
       title: "Semi Finals",
       seeds: [
-        { id: 10, date: "Wed Jul 08 2023", teams: [{ name: "Team 15", score: 2 }, { name: "Team 13", score: 1 } ] }, // Note: Original data had team 13 winning then losing. Corrected for progression.
-        { id: 11, date: "Wed Jul 08 2023", teams: [{ name: "Team 9", score: 5 }, { name: "Team 11", score: 3 } ] },
+        { id: 10, date: "Wed Jul 08 2023", teams: [{ name: "Team 13", score: 1 }, { name: "Team 15", score: 2 }] },
+        { id: 11, date: "Wed Jul 08 2023", teams: [{ name: "Team 9", score: 5 }, { name: "Team 11", score: 3 }] },
       ],
     },
     // Right side - Quarter Finals
@@ -93,8 +90,6 @@ const staticRoundsData: AdvancedRound[] = [
       ],
     },
 ];
-// --- End Static Data ---
-
 
 export default function AdvancedTournamentBracket() {
   const [activeTournament, setActiveTournament] = useState<TournamentSettings | null>(null);
@@ -152,8 +147,9 @@ export default function AdvancedTournamentBracket() {
     if (!activeTournament || !activeTournament.id || typeof activeTournament.numberOfRounds !== 'number' || activeTournament.numberOfRounds <= 0) {
       if (!isLoadingTournament && !criticalError && activeTournament && activeTournament.numberOfRounds === 0) {
         console.log(`[AdvancedBracket Effect 2] Tournament "${activeTournament.name}" has 0 rounds. No bracket data to fetch.`);
-        // TODO: Handle 0-round tournament display (e.g., show a message)
-        // For now, we'll let it fall through to static or empty display.
+        setIsLoadingBracketData(false); // Ensure loading is false for 0-round tournaments
+      } else if (!isLoadingTournament && !activeTournament && !criticalError) {
+        // If no tournament was found or there was an error handled by criticalError already.
         setIsLoadingBracketData(false);
       }
       return;
@@ -161,63 +157,72 @@ export default function AdvancedTournamentBracket() {
 
     console.log(`[AdvancedBracket Effect 2] Active tournament: "${activeTournament.name}". Setting up listeners for ${activeTournament.numberOfRounds} rounds.`);
     setIsLoadingBracketData(true);
-    setCriticalError(null); // Clear previous bracket data errors
+    // No criticalError reset here, as it might come from tournament fetching.
+    // We only set specific bracket data errors if they occur.
     setRawMatchDataByRound({}); // Reset raw data
 
     const unsubscribes: (() => void)[] = [];
     let roundsProcessedCount = 0;
     const totalListenersExpected = activeTournament.numberOfRounds;
+    const initialLoadTracker: { [roundId: string]: boolean } = {};
+
 
     const checkAllInitialLoadsComplete = () => {
-      roundsProcessedCount++;
-      console.log(`[AdvancedBracket Effect 2] Round initial data/error (${roundsProcessedCount}/${totalListenersExpected}).`);
-      if (roundsProcessedCount >= totalListenersExpected) {
-        console.log(`[AdvancedBracket Effect 2] All ${totalListenersExpected} rounds processed initial data. Setting isLoadingBracketData to false.`);
+      if (Object.keys(initialLoadTracker).length === totalListenersExpected) {
+        console.log(`[AdvancedBracket Effect 2] All ${totalListenersExpected} rounds processed initial data/error. Setting isLoadingBracketData to false.`);
         setIsLoadingBracketData(false);
-        // TODO: Trigger data transformation here
-        console.log("[AdvancedBracket Effect 2] Placeholder: Data transformation would occur now with all raw data.");
+         // In the future, data transformation logic would go here.
+        console.log("[AdvancedBracket Effect 2] Placeholder: All raw data fetched. Current rawMatchDataByRound:", rawMatchDataByRound);
       }
     };
 
     for (let i = 1; i <= activeTournament.numberOfRounds; i++) {
       const roundIdStr = String(i);
+      initialLoadTracker[roundIdStr] = false; // Mark as not yet loaded
+
       const matchesCollectionRef = collection(db, "tournaments", activeTournament.id, "rounds", roundIdStr, 'matches');
-      const qMatches = query(matchesCollectionRef, orderBy('__name__'));
+      const qMatches = query(matchesCollectionRef, orderBy('__name__')); // Order by match ID (e.g., match1, match2)
       console.log(`[AdvancedBracket Effect 2] Setting up listener for Round ${roundIdStr}`);
 
       const unsubscribeRound = onSnapshot(qMatches, (snapshot) => {
         const matchupsForRound: MatchupType[] = [];
         snapshot.forEach((matchDoc) => {
+          // Using mapFirestoreDocToMatchup for consistency, assuming it handles the 'fields' structure.
           const matchup = mapFirestoreDocToMatchup(matchDoc.id, roundIdStr, matchDoc.data());
           if (matchup) {
             matchupsForRound.push(matchup);
+          } else {
+            console.warn(`[AdvancedBracket Effect 2] Failed to map matchDoc ${matchDoc.id} in Round ${roundIdStr}`);
           }
         });
         
         setRawMatchDataByRound(prev => {
           const updatedRawData = { ...prev, [roundIdStr]: matchupsForRound };
-          console.log(`[AdvancedBracket Effect 2] Raw data updated for Round ${roundIdStr}:`, matchupsForRound);
-          console.log(`[AdvancedBracket Effect 2] Current full rawMatchDataByRound:`, updatedRawData);
-          // TODO: Data transformation and setDisplayRounds will happen based on updatedRawData
-          // For now, this log confirms data is being fetched.
+          // console.log(`[AdvancedBracket Effect 2] Raw data updated for Round ${roundIdStr}. Current full rawMatchDataByRound:`, updatedRawData);
           return updatedRawData;
         });
 
-        if (!unsubscribes.find(u => u === unsubscribeRound && (roundsProcessedCount < totalListenersExpected))) { // Check if this is the initial load for this listener
-            // This check might be tricky with onSnapshot. A better way is to track if initial load for this round completed.
-            // For simplicity, we'll use the overall roundsProcessedCount for now.
+        if (!initialLoadTracker[roundIdStr]) {
+            initialLoadTracker[roundIdStr] = true;
+            roundsProcessedCount++;
+            console.log(`[AdvancedBracket Effect 2] Initial data loaded for Round ${roundIdStr} (${roundsProcessedCount}/${totalListenersExpected}).`);
+            checkAllInitialLoadsComplete();
         }
-        checkAllInitialLoadsComplete(); // Call this on every update for now to ensure loading state is handled
 
       }, (error) => {
         console.error(`[AdvancedBracket Effect 2] Error fetching matchups for Round ${roundIdStr}:`, error);
         toast({
           title: `Error Loading Round ${roundIdStr}`,
-          description: "Could not load data for this round.",
+          description: "Could not load data for this round. Display may be incomplete.",
           variant: "destructive",
         });
-        setCriticalError(prev => prev || `Failed to load Round ${roundIdStr} data.`);
-        checkAllInitialLoadsComplete(); // Also call on error to ensure loading state progresses
+        if (!initialLoadTracker[roundIdStr]) {
+            initialLoadTracker[roundIdStr] = true; // Mark as processed even on error for loading state
+            roundsProcessedCount++;
+            console.log(`[AdvancedBracket Effect 2] Error on initial load for Round ${roundIdStr} (${roundsProcessedCount}/${totalListenersExpected}).`);
+            checkAllInitialLoadsComplete();
+        }
+        // Optionally set a partial error state for the UI if needed
       });
       unsubscribes.push(unsubscribeRound);
     }
@@ -226,18 +231,19 @@ export default function AdvancedTournamentBracket() {
       console.log("[AdvancedBracket Effect 2] Cleanup: Unsubscribing from Firestore listeners.");
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [activeTournament, isLoadingTournament, toast]); // Dependencies for fetching bracket data
+  }, [activeTournament, isLoadingTournament, toast]); // Removed rawMatchDataByRound to avoid re-triggering on its own update
 
 
   // --- Rendering Logic (using displayRounds, which is static for now) ---
   const leftPathRounds = displayRounds.slice(0, 3);
   const championshipRound = displayRounds.slice(3, 4);
-  const rightPathRounds = displayRounds.slice(4).map(round => ({
+  const rightPathRoundsData = displayRounds.slice(4);
+  
+  // Ensure right path seeds are reversed for correct visual order when mirrored
+  const rightPathRounds = rightPathRoundsData.map(round => ({
     ...round,
-    // Reverse seeds for correct visual rendering order in mirrored bracket
     seeds: [...round.seeds].reverse(),
   }));
-
 
   if (isLoadingTournament) {
     return (
@@ -248,7 +254,7 @@ export default function AdvancedTournamentBracket() {
     );
   }
 
-  if (criticalError && !activeTournament) {
+  if (criticalError && !activeTournament) { // Only show critical error if no tournament could be loaded at all
      return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
         <AlertTriangle className="h-16 w-16 text-destructive" />
@@ -258,7 +264,7 @@ export default function AdvancedTournamentBracket() {
     );
   }
   
-  if (!activeTournament && !isLoadingTournament) {
+  if (!activeTournament && !isLoadingTournament) { // Handles case where no tournaments exist but no fetch error
     return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
         <Info className="h-16 w-16 text-primary" />
@@ -268,7 +274,16 @@ export default function AdvancedTournamentBracket() {
     );
   }
   
-  // TODO: Add a specific message or UI for when activeTournament.numberOfRounds === 0
+  if (activeTournament && activeTournament.numberOfRounds === 0 && !isLoadingBracketData) {
+     return (
+      <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
+        <Info className="h-16 w-16 text-primary" />
+        <h2 className="text-3xl font-headline text-primary mt-4">Tournament Has No Rounds</h2>
+        <p className="text-muted-foreground max-w-lg">"{activeTournament.name}" is configured with 0 rounds. No bracket to display.</p>
+      </div>
+    );
+  }
+
 
   return (
     <div className="container mx-auto py-8">
@@ -277,16 +292,12 @@ export default function AdvancedTournamentBracket() {
       </h1>
       {isLoadingBracketData && activeTournament && activeTournament.numberOfRounds > 0 && (
          <p className="text-center text-sm text-muted-foreground mb-4 flex items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading live bracket data...
-        </p>
-      )}
-      {!isLoadingBracketData && criticalError && (
-         <p className="text-center text-sm text-destructive mb-4 flex items-center justify-center">
-            <AlertTriangle className="h-4 w-4 mr-2" /> Error loading some bracket data: {criticalError}
+            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading live bracket data... ({Object.values(rawMatchDataByRound).flat().length} matches fetched so far)
         </p>
       )}
        <p className="text-center text-muted-foreground mb-6 text-xs">
         This is an advanced bracket view. For detailed daily results, see the main <a href="/bracket" className="underline text-primary hover:text-primary/80">Bracket Page</a>.
+        <br/>Currently displaying static sample data. Dynamic data is being fetched in the background (check console).
       </p>
       
       <div className="overflow-x-auto bg-card p-2 rounded-lg shadow-lg">
@@ -302,7 +313,7 @@ export default function AdvancedTournamentBracket() {
             </div>
 
             {/* Championship in the middle */}
-            <div className="flex-initial mx-2 pt-[calc(3*6rem+1.5rem)]"> {/* Adjust pt for vertical alignment */}
+            <div className="flex-initial mx-2 pt-[calc(3*6rem+1.5rem)]"> {/* Adjust pt for vertical alignment based on seed height */}
               {championshipRound.length > 0 ? (
                 <Bracket
                   rounds={championshipRound}
@@ -331,13 +342,15 @@ export default function AdvancedTournamentBracket() {
   )
 }
 
+// Internal components for rendering the bracket - using theme colors
+
 function RoundTitleInternal({ title, roundIndex }: { title: ReactNode; roundIndex: number }) {
   return <div className="text-center text-lg font-semibold text-muted-foreground mb-3 mt-2 py-1 px-3 bg-muted/50 rounded-md">{String(title)}</div>;
 }
 
 function CustomSeedInternal({
   seed,
-  breakpoint,
+  breakpoint, // This prop comes from react-brackets
   roundIndex,
   seedIndex,
   isRightSide = false,
@@ -346,7 +359,7 @@ function CustomSeedInternal({
   const team1 = seed.teams[0];
   const team2 = seed.teams[1];
 
-  let winnerName: string | null = null; // Changed from undefined to null
+  let winnerName: string | null = null;
   let winnerIndex: 0 | 1 | undefined = undefined;
 
   if (team1?.score !== undefined && team2?.score !== undefined) {
@@ -358,11 +371,9 @@ function CustomSeedInternal({
       winnerName = team2.name;
     }
   } else if (team1?.name && team1.name.toLowerCase() !== "tbd" && team1.score !== undefined && (!team2?.name || team2.name.toLowerCase() === "tbd")) {
-      // If team1 exists, has a score, and team2 is TBD
       winnerIndex = 0;
       winnerName = team1.name;
   } else if (team2?.name && team2.name.toLowerCase() !== "tbd" && team2.score !== undefined && (!team1?.name || team1.name.toLowerCase() === "tbd")) {
-      // If team2 exists, has a score, and team1 is TBD
       winnerIndex = 1;
       winnerName = team2.name;
   }
@@ -390,6 +401,11 @@ function CustomSeedInternal({
                     Match Pending
                 </div>
             )}
+             {(!team1?.name || team1.name.toLowerCase() === "tbd" || !team2?.name || team2.name.toLowerCase() === "tbd") && !winnerName && (
+                 <div className="text-xs py-1 px-3 text-center bg-muted text-muted-foreground">
+                    Awaiting Teams
+                </div>
+            )}
           </Card>
           {seed.date && <div className="text-xs text-muted-foreground mt-1.5 text-center">{seed.date}</div>}
         </div>
@@ -411,9 +427,11 @@ function TeamItemInternal({ team, isWinner }: { team: AdvancedTeam | undefined; 
         ${isWinner ? "bg-accent text-accent-foreground font-semibold" : "bg-card text-card-foreground"}
       `}
     >
-      <span className="text-sm text-black">{team.name}</span> {/* Ensured text-black as per previous request */}
+      <span className="text-sm">{team.name}</span>
       {team.score !== undefined && <span className="text-sm font-mono">{team.score}</span>}
     </div>
   );
 }
     
+
+      
