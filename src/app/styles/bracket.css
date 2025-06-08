@@ -1,0 +1,12 @@
+/* Custom styles for the tournament bracket */
+.mirror-bracket .react-brackets-round {
+  flex-direction: column-reverse;
+}
+
+.mirror-bracket .react-brackets-bracket {
+  transform: scaleX(-1);
+}
+
+.mirror-bracket .react-brackets-seed-item {
+  transform: scaleX(-1);
+}
