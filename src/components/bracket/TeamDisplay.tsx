@@ -38,7 +38,7 @@ export default function TeamDisplay({ teamName, dailyWinsInMatchup = 0, isSeries
             width={24} height={24} 
             className="rounded-full" 
         />
-        <span className={cn("text-sm font-medium", isSeriesWinner ? "text-accent-foreground font-bold" : "text-foreground")}>{teamName}</span>
+        <span className={cn("text-sm font-medium text-black", isSeriesWinner ? "font-bold" : "")}>{teamName}</span>
       </div>
       <Badge variant={isSeriesWinner ? "default" : "secondary"} className={cn(isSeriesWinner ? "bg-accent text-accent-foreground" : "")}>
         {dailyWinsInMatchup} Wins
