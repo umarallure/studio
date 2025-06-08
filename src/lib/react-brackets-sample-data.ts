@@ -91,3 +91,33 @@ export const sampleRoundsWithScores: RoundProps[] = [
     ],
   },
 ];
+
+// Data structure for an 8-team tournament, based on the user's image.
+// react-brackets will render this linearly (QF -> SF -> F).
+export const imageData8TeamBracket: RoundProps[] = [
+  {
+    title: 'Quarter Finals',
+    seeds: [
+      { id: 'img_qf1', date: 'Wed Jul 05 2023', teams: [{ name: 'Team 1' }, { name: 'Team 2' }] },
+      { id: 'img_qf2', date: 'Wed Jul 05 2023', teams: [{ name: 'Team 3' }, { name: 'Team 4' }] },
+      { id: 'img_qf3', date: 'Wed Jul 05 2023', teams: [{ name: 'Team 5' }, { name: 'Team 6' }] },
+      { id: 'img_qf4', date: 'Wed Jul 05 2023', teams: [{ name: 'The Leons' }, { name: 'Kitties' }] },
+    ],
+  },
+  {
+    title: 'Semi Finals',
+    seeds: [
+      // Assuming Team 1 won QF1, Team 3 won QF2 for Left SF
+      { id: 'img_sf1', date: 'Wed Jul 05 2023', teams: [{ name: 'Team 1' }, { name: 'Team 3' }] },
+      // Assuming Team 5 won QF3, The Leons won QF4 for Right SF
+      { id: 'img_sf2', date: 'Wed Jul 05 2023', teams: [{ name: 'Team 5' }, { name: 'The Leons' }] },
+    ],
+  },
+  {
+    title: 'Final',
+    seeds: [
+      // Assuming Team 1 won Left SF, The Leons won Right SF
+      { id: 'img_final', date: 'Wed Jul 05 2023', teams: [{ name: 'Team 1' }, { name: 'The Leons' }] },
+    ],
+  },
+];
