@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from "@/components/ui/button";
-import { Gamepad2, LogOut, LayoutDashboard, Trophy, FileText, PlusSquare } from 'lucide-react';
+import { Gamepad2, LogOut, LayoutDashboard, Trophy, FileText, PlusSquare, Sitemap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Header() {
@@ -14,8 +14,9 @@ export default function Header() {
 
   const navItemsBase = [
     { href: '/bracket', label: 'Bracket', icon: Trophy, adminOnly: false },
+    { href: '/advanced-bracket', label: 'Adv. Bracket', icon: Sitemap, adminOnly: false },
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
-    { href: '/sheet-data', label: 'Sheet Data', icon: FileText, adminOnly: false }, // Page itself is not admin only, but sync button is
+    { href: '/sheet-data', label: 'Sheet Data', icon: FileText, adminOnly: false },
   ];
 
   const adminNavItems = [
@@ -27,6 +28,15 @@ export default function Header() {
     if (user?.role === 'admin') {
       items = items.concat(adminNavItems);
     }
+    // Sort items: put admin items last or maintain a specific order if desired
+    // For now, simple concatenation is fine. If order matters, implement sorting.
+    items.sort((a, b) => {
+        if (a.href === '/bracket') return -1; // Bracket first
+        if (b.href === '/bracket') return 1;
+        if (a.href === '/advanced-bracket' && b.href !== '/bracket') return -1; // Then Adv. Bracket
+        if (b.href === '/advanced-bracket' && a.href !== '/bracket') return 1;
+        return 0; // Keep original relative order for others
+    });
     return items.filter(item => !item.adminOnly || (item.adminOnly && user?.role === 'admin'));
   };
 
@@ -40,17 +50,18 @@ export default function Header() {
           <span className="font-headline text-2xl font-bold text-primary">BPO Games</span>
         </Link>
         
-        <nav className="hidden md:flex items-center space-x-2 lg:space-x-4">
+        <nav className="hidden md:flex items-center space-x-1 lg:space-x-2">
           {isAuthenticated && visibleNavItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "text-sm font-medium transition-colors hover:text-primary px-3 py-2 rounded-md",
+                "text-sm font-medium transition-colors hover:text-primary px-2 py-2 rounded-md lg:px-3",
                 pathname === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground"
               )}
+              title={item.label}
             >
-              <item.icon className="inline-block h-4 w-4 mr-1.5" />
+              <item.icon className="inline-block h-4 w-4 mr-1 lg:mr-1.5" />
               {item.label}
             </Link>
           ))}
@@ -80,12 +91,13 @@ export default function Header() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center text-xs font-medium transition-colors hover:text-primary p-1 rounded-md",
+                "flex flex-col items-center text-xs font-medium transition-colors hover:text-primary p-1 rounded-md w-[calc(100%_/_" + visibleNavItems.length + ")] text-center",
                 pathname === item.href ? "text-primary" : "text-muted-foreground"
               )}
+              title={item.label}
             >
               <item.icon className="h-5 w-5 mb-0.5" />
-              {item.label}
+              <span className="truncate w-full">{item.label}</span>
             </Link>
           ))}
         </div>
