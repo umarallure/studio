@@ -4,6 +4,7 @@
 import { useState } from "react"
 import { Bracket, Seed, SeedItem, type RoundProps } from "react-brackets" // Added RoundProps for type safety
 import { Card } from "@/components/ui/card"
+import '@/app/styles/bracket.css'; // Import the custom CSS
 
 // Define a more specific type for team and seed if possible, for now using 'any' as per user's code
 interface Team {
@@ -200,26 +201,7 @@ export default function AdvancedTournamentBracket() {
         </div>
       </div>
 
-      <style jsx global>{`
-        .mirror-bracket .react-brackets-round {
-          /* For mirroring, rounds might need to flow from right to left visually if data isn't pre-reversed */
-          /* The library typically renders left-to-right, so scaleX on parent handles visual mirroring */
-        }
-        
-        .mirror-bracket .react-brackets-bracket {
-          transform: scaleX(-1);
-        }
-        
-        .mirror-bracket .react-brackets-seed-item,
-        .mirror-bracket .react-brackets-round-title > div { /* Ensure title text is not mirrored */
-          transform: scaleX(-1);
-        }
-
-        /* Ensure lines are drawn correctly for mirrored bracket - this might need tweaking */
-        .mirror-bracket .react-brackets-line {
-          /* react-brackets might use specific classes or inline styles for lines that need to be targeted */
-        }
-      `}</style>
+      {/* Removed <style jsx global> as styles are now in bracket.css */}
     </div>
   )
 }
