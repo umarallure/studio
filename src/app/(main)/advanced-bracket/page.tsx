@@ -1,10 +1,9 @@
-
 "use client"
 
 import { useState } from "react"
 import { Bracket, Seed, SeedItem, type RoundProps } from "react-brackets" // Added RoundProps for type safety
 import { Card } from "@/components/ui/card"
-import '@/app/styles/bracket.css'; // Import the custom CSS
+// Removed: import '@/app/styles/bracket.css';
 
 // Define a more specific type for team and seed if possible, for now using 'any' as per user's code
 interface Team {
@@ -200,8 +199,6 @@ export default function AdvancedTournamentBracket() {
           </div>
         </div>
       </div>
-
-      {/* Removed <style jsx global> as styles are now in bracket.css */}
     </div>
   )
 }
@@ -277,5 +274,3 @@ function TeamItem({ team, winner }: { team: Team | undefined; winner?: boolean }
     </div>
   )
 }
-
-    

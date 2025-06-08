@@ -1,7 +1,7 @@
-
 import type { ReactNode } from 'react';
 import AuthCheck from '@/components/shared/AuthCheck';
 import Header from '@/components/shared/Header';
+import '@/app/styles/bracket.css'; // Import bracket-specific styles here
 
 export default function MainAppLayout({ children }: { children: ReactNode }) {
   return (
