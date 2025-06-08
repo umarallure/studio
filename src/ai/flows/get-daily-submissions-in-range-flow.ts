@@ -40,9 +40,9 @@ export async function getDailySubmissionsInRange(input: DateRangeFilterInput): P
   const result = await getDailySubmissionsInRangeFlow(input);
   console.log(`[Genkit Flow getDailySubmissionsInRange] Result: ${result.dailySubmissions.length} data points. Filter: ${result.filterApplied}, Start: ${result.startDate}, End: ${result.endDate}`);
   if (result.dailySubmissions.length > 0) {
-    console.log('[Genkit Flow getDailySubmissionsInRange] Sample data point:', JSON.stringify(result.dailySubmissions[0]));
+    // console.log('[Genkit Flow getDailySubmissionsInRange] Sample data point:', JSON.stringify(result.dailySubmissions[0]));
   } else {
-    console.log('[Genkit Flow getDailySubmissionsInRange] No data points returned.');
+    // console.log('[Genkit Flow getDailySubmissionsInRange] No data points returned.');
   }
   return result;
 }
@@ -69,31 +69,32 @@ const getDailySubmissionsInRangeFlow = ai.defineFlow(
       }
       
       const datesInRange = eachDayOfInterval({ start: parsedStartDate, end: parsedEndDate });
-      console.log(`[FlowInternal DailySubmissionsRange] Dates to fill (if no data): ${datesInRange.length} days from ${formatDate(datesInRange[0], 'yyyy-MM-dd')} to ${formatDate(datesInRange[datesInRange.length - 1], 'yyyy-MM-dd')}`);
+      // console.log(`[FlowInternal DailySubmissionsRange] Dates to fill (if no data): ${datesInRange.length} days from ${formatDate(datesInRange[0], 'yyyy-MM-dd')} to ${formatDate(datesInRange[datesInRange.length - 1], 'yyyy-MM-dd')}`);
 
       const sheetRowsCollectionRef = collection(db, "Sheet1Rows");
+      // MODIFICATION: Removed LeadVender filter from Firestore query
       const queryConstraints: QueryConstraint[] = [
         where("Date", ">=", startDate),
         where("Date", "<=", endDate),
       ];
-      if (leadVenderFilter) {
-        // Ensure the field name "Lead Vender" (with a space) matches your Firestore data
-        queryConstraints.push(where("Lead Vender", "==", leadVenderFilter.trim())); 
-        console.log(`[FlowInternal DailySubmissionsRange] Added LeadVender filter: "${leadVenderFilter.trim()}" on field "Lead Vender"`);
-      }
+      // if (leadVenderFilter) {
+      //   queryConstraints.push(where("Lead Vender", "==", leadVenderFilter.trim())); 
+      //   console.log(`[FlowInternal DailySubmissionsRange] Filtering query by LeadVender: "${leadVenderFilter.trim()}" on field "Lead Vender"`);
+      // } else {
+      //   console.log(`[FlowInternal DailySubmissionsRange] Not applying LeadVender filter to Firestore query.`);
+      // }
       
       const q = query(sheetRowsCollectionRef, ...queryConstraints);
-      console.log(`[FlowInternal DailySubmissionsRange] Firestore query constraints for '${leadVenderFilter || 'all'}': ${JSON.stringify(queryConstraints.map(qc => ({_op: (qc as any)._op, _field: (qc as any)._fieldPath.segments.join('.'), _value: (qc as any)._value })))}`);
+      console.log(`[FlowInternal DailySubmissionsRange] Firestore query (DATE ONLY) constraints: ${JSON.stringify(queryConstraints.map(qc => ({_op: (qc as any)._op, _field: (qc as any)._fieldPath.segments.join('.'), _value: (qc as any)._value })))}`);
       
       const querySnapshot = await getDocs(q);
-      console.log(`[FlowInternal DailySubmissionsRange] Firestore query for '${leadVenderFilter || 'all teams'}' returned ${querySnapshot.size} documents.`);
+      console.log(`[FlowInternal DailySubmissionsRange] Firestore query (DATE ONLY) returned ${querySnapshot.size} documents.`);
       
       const submittedRowsByDate: Map<string, number> = new Map();
       let processedDocsCount = 0;
       querySnapshot.forEach(doc => {
         processedDocsCount++;
         const rawData = doc.data();
-        // VERY EXPLICIT LOG OF RAW DATA
         console.log(`[FlowInternal DailySubmissionsRange] Processing doc ID: ${doc.id}. RAW DATA: ${JSON.stringify(rawData)}`);
         
         const row = mapDocToSheetRow(doc.id, rawData); 
@@ -104,6 +105,8 @@ const getDailySubmissionsInRangeFlow = ai.defineFlow(
           const isSubmitted = row.Status === "Submitted";
           const filterToCompare = leadVenderFilter ? leadVenderFilter.trim() : null;
           const rowLeadVender = row.LeadVender ? row.LeadVender.trim() : null;
+          
+          // MODIFICATION: LeadVender filter applied here in code
           const matchesLeadVender = !filterToCompare || (rowLeadVender === filterToCompare);
           
           let isValidDateInRange = false;
@@ -122,17 +125,16 @@ const getDailySubmissionsInRangeFlow = ai.defineFlow(
           } else {
             let skipReason = [];
             if (!isSubmitted) skipReason.push(`Status not 'Submitted' (is '${row.Status}')`);
-            if (!matchesLeadVender) skipReason.push(`LeadVender mismatch ('${rowLeadVender}' vs filter '${filterToCompare}')`);
+            if (!matchesLeadVender) skipReason.push(`LeadVender mismatch ('${rowLeadVender}' vs filter '${filterToCompare}')`); // This is the key check now if filter is active
             if (!isValidDateInRange) skipReason.push(`Date out of range/invalid ('${row.Date}' vs [${formatDate(parsedStartDate, 'yyyy-MM-dd')}, ${formatDate(parsedEndDate, 'yyyy-MM-dd')}])`);
             if (!row.Date) skipReason.push('row.Date is missing after mapping');
             console.log(`[FlowInternal DailySubmissionsRange] SKIPPED counting doc ID ${doc.id}. Reasons: ${skipReason.join('; ')}`);
           }
         } else {
-            // mapDocToSheetRow already logs why it returned null if mapping fails
-            console.log(`[FlowInternal DailySubmissionsRange] mapDocToSheetRow returned null for doc ID: ${doc.id}. Raw data was logged above.`);
+            console.warn(`[FlowInternal DailySubmissionsRange] mapDocToSheetRow returned null for doc ID: ${doc.id}. Raw data was logged above.`);
         }
       });
-      console.log(`[FlowInternal DailySubmissionsRange] Finished processing ${querySnapshot.size} docs. Submitted counts by date (before filling gaps):`, JSON.stringify(Array.from(submittedRowsByDate.entries())));
+      console.log(`[FlowInternal DailySubmissionsRange] Finished processing ${querySnapshot.size} docs. Submitted counts by date (before filling gaps, after JS filter for LeadVender if active):`, JSON.stringify(Array.from(submittedRowsByDate.entries())));
 
       for (const dateObj of datesInRange) {
         const dateStr = formatDate(dateObj, 'yyyy-MM-dd');
