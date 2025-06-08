@@ -1,28 +1,28 @@
 
 "use client";
 
-import type { CenterDashboardData, TopAgentMetric, DailyChartDataPoint } from '@/lib/types';
+import type { CenterDashboardData, TopAgentMetric } from '@/lib/types';
 import { defaultCenterData, mockCenterData1, mockCenterData2 } from '@/lib/mock-data';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect, useState, useCallback, useMemo } from 'react'; // Added useMemo
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
 import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
-import { getTotalPointsInRange } from '@/ai/flows/get-total-points-in-range-flow';
-import { getDailySubmissionsInRange } from '@/ai/flows/get-daily-submissions-in-range-flow';
+// Removed: import { getTotalPointsInRange } from '@/ai/flows/get-total-points-in-range-flow';
+// Removed: import { getDailySubmissionsInRange } from '@/ai/flows/get-daily-submissions-in-range-flow';
 
-import { format as formatDate, subDays, isValid, parseISO } from 'date-fns'; 
+import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Sigma, Award, CalendarDays, Info, BarChart3, TrendingUp } from 'lucide-react'; 
+import { Loader2, Lock, Sigma, Award, CalendarDays, Info, BarChart3, TrendingUp } from 'lucide-react';
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import TeamDailySubmissionsLineChart from '@/components/dashboard/TeamDailySubmissionsLineChart';
+// Removed: import TeamDailySubmissionsLineChart from '@/components/dashboard/TeamDailySubmissionsLineChart';
 
 interface AvailableCenter {
   id: string;
   name: string;
-  baseMockData: CenterDashboardData; 
+  baseMockData: CenterDashboardData;
   leadVenderFilterName: string | null;
 }
 
@@ -32,8 +32,8 @@ const availableCentersForAdmin: AvailableCenter[] = [
   { id: 'team2_view', name: 'Team 2 View', baseMockData: mockCenterData2, leadVenderFilterName: 'Team 2' },
 ];
 
-const FIXED_DATE_RANGE_DAYS = 30; 
-const TEAM1_FILTER_NAME = "Team 1";
+const FIXED_DATE_RANGE_DAYS = 30;
+const TEAM1_FILTER_NAME = "Team 1"; // This constant might become unused if no Team 1 specific chart remains
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -41,13 +41,13 @@ export default function DashboardPage() {
 
   const [displayedDashboardData, setDisplayedDashboardData] = useState<CenterDashboardData>(defaultCenterData);
   const [adminSelectedCenterId, setAdminSelectedCenterId] = useState<string>('all');
-  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true); 
-  
-  const [totalPointsInRange, setTotalPointsInRange] = useState<number | null>(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
+
+  // Removed: const [totalPointsInRange, setTotalPointsInRange] = useState<number | null>(null);
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
-  
-  const [team1DailySubmissionsChartData, setTeam1DailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
+
+  // Removed: const [team1DailySubmissionsChartData, setTeam1DailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
 
   const fixedDateRange = useMemo(() => {
     const toDate = new Date();
@@ -56,11 +56,11 @@ export default function DashboardPage() {
       to: toDate,
       from: fromDate,
     };
-  }, []); // Empty dependency array: Calculate once on mount
+  }, []);
 
   const fetchAndDisplayMetrics = useCallback(async (
     filterNameForCards: string | null,
-    baseDataForUI: CenterDashboardData, 
+    baseDataForUI: CenterDashboardData,
     uiCenterName: string
   ) => {
     console.log('[DashboardPage] fetchAndDisplayMetrics called. Cards Filter:', filterNameForCards, 'UI Name:', uiCenterName);
@@ -72,36 +72,30 @@ export default function DashboardPage() {
 
     try {
       const cardsFlowInput = { leadVenderFilter: filterNameForCards, startDate: startDateStr, endDate: endDateStr };
-      const team1ChartFlowInput = { leadVenderFilter: TEAM1_FILTER_NAME, startDate: startDateStr, endDate: endDateStr };
-      
+      // Removed team1ChartFlowInput
+
       const [
-        totalPointsResult,
+        // Removed totalPointsResult,
         submissionsForLastDayResult,
         submissionsForDayBeforeLastDayResult,
         topAgentResult,
-        team1SubmissionsChartResult,
+        // Removed team1SubmissionsChartResult,
       ] = await Promise.all([
-        getTotalPointsInRange(cardsFlowInput),
+        // Removed: getTotalPointsInRange(cardsFlowInput),
         getDailySubmissions({ targetDate: endDateStr, leadVenderFilter: filterNameForCards }),
         getDailySubmissions({ targetDate: dayBeforeEndDateStr, leadVenderFilter: filterNameForCards }),
         getTopAgentLastMonth({ leadVenderFilter: filterNameForCards }),
-        getDailySubmissionsInRange(team1ChartFlowInput),
+        // Removed: getDailySubmissionsInRange(team1ChartFlowInput),
       ]);
-      
-      console.log('[DashboardPage] API - Total Points (Cards Filter):', totalPointsResult);
-      setTotalPointsInRange(totalPointsResult.totalPoints);
 
-      const validTeam1Submissions = team1SubmissionsChartResult.dailySubmissions.filter(
-        dp => dp.date && isValid(parseISO(dp.date)) && typeof dp.count === 'number'
-      );
-      setTeam1DailySubmissionsChartData(validTeam1Submissions);
-      console.log('[DashboardPage] API - Validated Daily Submissions for Team 1 Chart:', validTeam1Submissions.length, 'items');
+      // Removed logging and setting for totalPointsResult
+      // Removed logging and setting for team1SubmissionsChartResult
 
       setDailySubmissionsForCard({
         current: submissionsForLastDayResult.submissionCount,
         previous: submissionsForDayBeforeLastDayResult.submissionCount,
       });
-      
+
       const newTopAgentData: TopAgentMetric = {
           id: 'topAgentLM',
           title: 'Top Agent (Last Month)',
@@ -113,23 +107,23 @@ export default function DashboardPage() {
       setTopAgentData(newTopAgentData);
 
       setDisplayedDashboardData(prev => ({
-        ...prev, 
-        centerName: uiCenterName, 
-        dailySales: { 
-          ...prev.dailySales, 
-          title: `Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`, 
+        ...prev,
+        centerName: uiCenterName,
+        dailySales: {
+          ...prev.dailySales,
+          title: `Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`,
           value: submissionsForLastDayResult.submissionCount,
           previousValue: submissionsForDayBeforeLastDayResult.submissionCount,
-          trend: submissionsForLastDayResult.submissionCount > submissionsForDayBeforeLastDayResult.submissionCount ? 'up' 
-               : submissionsForLastDayResult.submissionCount < submissionsForDayBeforeLastDayResult.submissionCount ? 'down' 
+          trend: submissionsForLastDayResult.submissionCount > submissionsForDayBeforeLastDayResult.submissionCount ? 'up'
+               : submissionsForLastDayResult.submissionCount < submissionsForDayBeforeLastDayResult.submissionCount ? 'down'
                : 'neutral',
           description: filterNameForCards ? `For ${filterNameForCards} on ${endDateStr}` : `Total on ${endDateStr}`,
           unit: 'subs',
         },
         chargebackPercentage: baseDataForUI.chargebackPercentage,
         flowThroughRate: baseDataForUI.flowThroughRate,
-      })); 
-      
+      }));
+
       console.log('[DashboardPage] Successfully updated UI data for:', uiCenterName);
 
     } catch (error) {
@@ -139,8 +133,8 @@ export default function DashboardPage() {
         description: "Could not load all dynamic data. Displaying last known or default values.",
         variant: "destructive",
       });
-      setTotalPointsInRange(0);
-      setTeam1DailySubmissionsChartData([]);
+      // Removed: setTotalPointsInRange(0);
+      // Removed: setTeam1DailySubmissionsChartData([]);
       setDailySubmissionsForCard({current: 0, previous: 0});
       setTopAgentData(baseDataForUI.topAgentLastMonth || defaultCenterData.topAgentLastMonth!);
        setDisplayedDashboardData(prev => ({
@@ -154,14 +148,14 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast, fixedDateRange.from, fixedDateRange.to]); // fixedDateRange.from and .to are now stable
+  }, [toast, fixedDateRange.from, fixedDateRange.to]);
 
   useEffect(() => {
-    if (isAuthLoading) { 
-      setIsLoadingMetrics(true); 
+    if (isAuthLoading) {
+      setIsLoadingMetrics(true);
       return;
     }
-    if (!user) { 
+    if (!user) {
         setIsLoadingMetrics(false);
         return;
     }
@@ -177,13 +171,13 @@ export default function DashboardPage() {
     } else if (user.role === 'teamMember' && user.teamNameForFilter) {
       const teamConfig = availableCentersForAdmin.find(c => c.leadVenderFilterName === user.teamNameForFilter);
       centerToLoad = {
-        id: user.teamNameForFilter.replace(/\s+/g, '-').toLowerCase(), 
+        id: user.teamNameForFilter.replace(/\s+/g, '-').toLowerCase(),
         name: user.teamNameForFilter,
         baseMockData: teamConfig ? teamConfig.baseMockData : defaultCenterData,
         leadVenderFilterName: user.teamNameForFilter
       };
       filterForMetricCards = user.teamNameForFilter;
-    } else { 
+    } else {
       centerToLoad = {
         id: 'general_user_view',
         name: 'Your Dashboard (General)',
@@ -192,7 +186,7 @@ export default function DashboardPage() {
       };
       filterForMetricCards = null;
        if (user.role === 'teamMember' && !user.teamNameForFilter) {
-        setTeam1DailySubmissionsChartData([]);
+        // Removed: setTeam1DailySubmissionsChartData([]);
         toast({
           title: "Data View Restricted",
           description: "Your account is not assigned to a specific team. Some metrics may not be available.",
@@ -202,15 +196,15 @@ export default function DashboardPage() {
     }
     fetchAndDisplayMetrics(filterForMetricCards, centerToLoad.baseMockData, centerToLoad.name);
 
-  }, [user, isAuthLoading, adminSelectedCenterId, fetchAndDisplayMetrics, toast]); 
+  }, [user, isAuthLoading, adminSelectedCenterId, fetchAndDisplayMetrics, toast]);
 
 
   const handleAdminCenterChange = (newCenterId: string) => {
     console.log('[DashboardPage] Admin Center Change - New center selected:', newCenterId);
-    setAdminSelectedCenterId(newCenterId); 
+    setAdminSelectedCenterId(newCenterId);
   };
-  
-  if (isAuthLoading && isLoadingMetrics) { 
+
+  if (isAuthLoading && isLoadingMetrics) {
     return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -224,16 +218,8 @@ export default function DashboardPage() {
     : (user?.teamNameForFilter ? `${user.teamNameForFilter} Dashboard` : "Team Dashboard"));
 
   const metricsToDisplay = [
-    displayedDashboardData.dailySales, 
-    { 
-      id: 'totalPointsRange',
-      title: `Total Points (Last ${FIXED_DATE_RANGE_DAYS} Days)`,
-      value: totalPointsInRange ?? (isLoadingMetrics ? '...' : 0),
-      unit: 'points',
-      trend: 'neutral' as 'neutral',
-      icon: Sigma,
-      description: `Total 'Submitted' entries in the last ${FIXED_DATE_RANGE_DAYS} days.`,
-    },
+    displayedDashboardData.dailySales,
+    // Removed totalPointsInRange metric
     displayedDashboardData.chargebackPercentage,
   ];
   if (topAgentData) {
@@ -242,11 +228,11 @@ export default function DashboardPage() {
         title: topAgentData.title,
         value: topAgentData.agentName || "N/A",
         unit: topAgentData.submissionCount > 0 ? ` (${topAgentData.submissionCount} subs)` : '',
-        trend: 'neutral' as 'neutral', 
+        trend: 'neutral' as 'neutral',
         icon: topAgentData.icon || Award,
         description: topAgentData.description || `${topAgentData.submissionCount} submissions last month`,
      };
-     metricsToDisplay.push(topAgentCardMetric as any); 
+     metricsToDisplay.push(topAgentCardMetric as any);
   }
 
   const fixedRangeText = `Last ${FIXED_DATE_RANGE_DAYS} Days (${formatDate(fixedDateRange.from, "LLL d")} - ${formatDate(fixedDateRange.to, "LLL d")})`;
@@ -260,7 +246,7 @@ export default function DashboardPage() {
             {pageTitle}
           </h1>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-            {user?.role === 'admin' && ( 
+            {user?.role === 'admin' && (
                 <Select value={adminSelectedCenterId} onValueChange={handleAdminCenterChange} disabled={isLoadingMetrics}>
                 <SelectTrigger className="w-full sm:w-[220px] bg-input">
                     <SelectValue placeholder="Select Center View" />
@@ -287,10 +273,10 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
-      
+
       {isLoadingMetrics && metricsToDisplay.every(m => m.value === 0 || m.value === '...' || m.value === "N/A") ? (
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
-            {[1,2,3,4].map(i => (
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4"> {/* Reduced to 3 for the remaining cards */}
+            {[1,2,3].map(i => (
               <Card key={i} className="h-40 shadow-md flex items-center justify-center">
                   <Loader2 className="h-10 w-10 animate-spin text-primary" />
               </Card>
@@ -298,7 +284,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4"> {/* Reduced to 3 */}
             {metricsToDisplay.map((metric) => (
                 <MetricCard key={metric.id} metric={metric} />
             ))}
@@ -315,24 +301,15 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
-              Your account is not currently assigned to a specific team, so team-specific dashboard data cannot be displayed. 
+              Your account is not currently assigned to a specific team, so team-specific dashboard data cannot be displayed.
               Please contact an administrator if you believe this is an error.
             </p>
           </CardContent>
         </Card>
       )}
 
-       <div className="grid grid-cols-1 gap-6 mt-8">
-        <TeamDailySubmissionsLineChart 
-          data={team1DailySubmissionsChartData}
-          teamName={TEAM1_FILTER_NAME}
-          isLoading={isLoadingMetrics}
-          dateRangeDescription={fixedRangeText}
-        />
-      </div>
+      {/* Removed the TeamDailySubmissionsLineChart section */}
 
     </div>
   );
 }
-
-    
