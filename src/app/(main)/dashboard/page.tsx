@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { CenterDashboardData, TopAgentMetric } from '@/lib/types';
+import type { CenterDashboardData, TopAgentMetric, ChartSegment } from '@/lib/types';
 import { defaultCenterData, mockCenterData1, mockCenterData2 } from '@/lib/mock-data';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useCallback, useMemo } from 'react';
@@ -9,15 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
 import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
-// Removed: import { getTotalPointsInRange } from '@/ai/flows/get-total-points-in-range-flow';
-// Removed: import { getDailySubmissionsInRange } from '@/ai/flows/get-daily-submissions-in-range-flow';
+import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-status-for-chart-flow';
+
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Sigma, Award, CalendarDays, Info, BarChart3, TrendingUp } from 'lucide-react';
+import { Loader2, Lock, Award, CalendarDays, Info, Target } from 'lucide-react';
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-// Removed: import TeamDailySubmissionsLineChart from '@/components/dashboard/TeamDailySubmissionsLineChart';
+
 
 interface AvailableCenter {
   id: string;
@@ -33,7 +33,6 @@ const availableCentersForAdmin: AvailableCenter[] = [
 ];
 
 const FIXED_DATE_RANGE_DAYS = 30;
-const TEAM1_FILTER_NAME = "Team 1"; // This constant might become unused if no Team 1 specific chart remains
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -43,11 +42,10 @@ export default function DashboardPage() {
   const [adminSelectedCenterId, setAdminSelectedCenterId] = useState<string>('all');
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
 
-  // Removed: const [totalPointsInRange, setTotalPointsInRange] = useState<number | null>(null);
   const [dailySubmissionsForCard, setDailySubmissionsForCard] = useState<{current: number, previous: number} | null>(null);
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
+  const [calculatedFlowThroughRate, setCalculatedFlowThroughRate] = useState<number>(0);
 
-  // Removed: const [team1DailySubmissionsChartData, setTeam1DailySubmissionsChartData] = useState<DailyChartDataPoint[]>([]);
 
   const fixedDateRange = useMemo(() => {
     const toDate = new Date();
@@ -66,34 +64,28 @@ export default function DashboardPage() {
     console.log('[DashboardPage] fetchAndDisplayMetrics called. Cards Filter:', filterNameForCards, 'UI Name:', uiCenterName);
     setIsLoadingMetrics(true);
 
-    const startDateStr = formatDate(fixedDateRange.from, 'yyyy-MM-dd');
-    const endDateStr = formatDate(fixedDateRange.to, 'yyyy-MM-dd');
-    const dayBeforeEndDateStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
+    const todayStr = formatDate(fixedDateRange.to, 'yyyy-MM-dd');
+    const yesterdayStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
 
     try {
-      const cardsFlowInput = { leadVenderFilter: filterNameForCards, startDate: startDateStr, endDate: endDateStr };
-      // Removed team1ChartFlowInput
-
       const [
-        // Removed totalPointsResult,
-        submissionsForLastDayResult,
-        submissionsForDayBeforeLastDayResult,
+        submissionsForTodayResult,
+        submissionsForYesterdayResult,
         topAgentResult,
-        // Removed team1SubmissionsChartResult,
+        entryStatsResult,
       ] = await Promise.all([
-        // Removed: getTotalPointsInRange(cardsFlowInput),
-        getDailySubmissions({ targetDate: endDateStr, leadVenderFilter: filterNameForCards }),
-        getDailySubmissions({ targetDate: dayBeforeEndDateStr, leadVenderFilter: filterNameForCards }),
+        getDailySubmissions({ targetDate: todayStr, leadVenderFilter: filterNameForCards }),
+        getDailySubmissions({ targetDate: yesterdayStr, leadVenderFilter: filterNameForCards }),
         getTopAgentLastMonth({ leadVenderFilter: filterNameForCards }),
-        // Removed: getDailySubmissionsInRange(team1ChartFlowInput),
+        getEntryStatsByStatusForChart({ 
+            leadVenderFilter: filterNameForCards, 
+            daysToCover: FIXED_DATE_RANGE_DAYS 
+        }),
       ]);
 
-      // Removed logging and setting for totalPointsResult
-      // Removed logging and setting for team1SubmissionsChartResult
-
       setDailySubmissionsForCard({
-        current: submissionsForLastDayResult.submissionCount,
-        previous: submissionsForDayBeforeLastDayResult.submissionCount,
+        current: submissionsForTodayResult.submissionCount,
+        previous: submissionsForYesterdayResult.submissionCount,
       });
 
       const newTopAgentData: TopAgentMetric = {
@@ -106,25 +98,51 @@ export default function DashboardPage() {
       };
       setTopAgentData(newTopAgentData);
 
+      // Calculate Flow-Through Rate
+      let approvedCount = 0;
+      let submittedCount = 0;
+      let rejectedCount = 0;
+
+      entryStatsResult.forEach((segment: ChartSegment) => {
+        if (segment.name === "Approved") approvedCount = segment.value;
+        if (segment.name === "Submitted") submittedCount = segment.value;
+        if (segment.name === "Rejected") rejectedCount = segment.value;
+      });
+      
+      const flowThroughDenominator = submittedCount + approvedCount + rejectedCount;
+      const newFlowThroughRate = flowThroughDenominator > 0
+        ? parseFloat(((approvedCount / flowThroughDenominator) * 100).toFixed(1))
+        : 0;
+      setCalculatedFlowThroughRate(newFlowThroughRate);
+
+      const fixedRangeTextShort = `Last ${FIXED_DATE_RANGE_DAYS}D`;
+
       setDisplayedDashboardData(prev => ({
         ...prev,
         centerName: uiCenterName,
         dailySales: {
-          ...prev.dailySales,
+          ...prev.dailySales, // Keep base structure from mock/default
           title: `Submissions (${formatDate(fixedDateRange.to, 'LLL d')})`,
-          value: submissionsForLastDayResult.submissionCount,
-          previousValue: submissionsForDayBeforeLastDayResult.submissionCount,
-          trend: submissionsForLastDayResult.submissionCount > submissionsForDayBeforeLastDayResult.submissionCount ? 'up'
-               : submissionsForLastDayResult.submissionCount < submissionsForDayBeforeLastDayResult.submissionCount ? 'down'
+          value: submissionsForTodayResult.submissionCount,
+          previousValue: submissionsForYesterdayResult.submissionCount,
+          trend: submissionsForTodayResult.submissionCount > submissionsForYesterdayResult.submissionCount ? 'up'
+               : submissionsForTodayResult.submissionCount < submissionsForYesterdayResult.submissionCount ? 'down'
                : 'neutral',
-          description: filterNameForCards ? `For ${filterNameForCards} on ${endDateStr}` : `Total on ${endDateStr}`,
-          unit: 'subs',
+          description: filterNameForCards ? `For ${filterNameForCards}` : `Total for today`,
         },
-        chargebackPercentage: baseDataForUI.chargebackPercentage,
-        flowThroughRate: baseDataForUI.flowThroughRate,
+        chargebackPercentage: baseDataForUI.chargebackPercentage, // Still mock
+        flowThroughRate: { // Update this metric with calculated data
+            ...baseDataForUI.flowThroughRate, // Keep ID, icon etc.
+            title: `Flow-Through (${fixedRangeTextShort})`,
+            value: newFlowThroughRate,
+            unit: '%',
+            trend: 'neutral', // Or implement logic to compare to previous period or target
+            description: `Approved / (Submitted + Approved + Rejected)`,
+            icon: Target,
+        },
       }));
 
-      console.log('[DashboardPage] Successfully updated UI data for:', uiCenterName);
+      console.log('[DashboardPage] Successfully updated UI data for:', uiCenterName, 'Flow-Through Rate:', newFlowThroughRate);
 
     } catch (error) {
       console.error("[DashboardPage] Failed to fetch dynamic dashboard metrics:", error);
@@ -133,22 +151,21 @@ export default function DashboardPage() {
         description: "Could not load all dynamic data. Displaying last known or default values.",
         variant: "destructive",
       });
-      // Removed: setTotalPointsInRange(0);
-      // Removed: setTeam1DailySubmissionsChartData([]);
       setDailySubmissionsForCard({current: 0, previous: 0});
       setTopAgentData(baseDataForUI.topAgentLastMonth || defaultCenterData.topAgentLastMonth!);
+      setCalculatedFlowThroughRate(0);
        setDisplayedDashboardData(prev => ({
         ...prev,
         centerName: uiCenterName,
         dailySales: { ...baseDataForUI.dailySales, value: 0, previousValue: 0, description: "Error loading live data." },
         chargebackPercentage: baseDataForUI.chargebackPercentage,
-        flowThroughRate: baseDataForUI.flowThroughRate,
+        flowThroughRate: { ...baseDataForUI.flowThroughRate, value: 0, description: "Error loading live data."},
       }));
     } finally {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast, fixedDateRange.from, fixedDateRange.to]);
+  }, [toast, fixedDateRange.to]);
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -186,7 +203,6 @@ export default function DashboardPage() {
       };
       filterForMetricCards = null;
        if (user.role === 'teamMember' && !user.teamNameForFilter) {
-        // Removed: setTeam1DailySubmissionsChartData([]);
         toast({
           title: "Data View Restricted",
           description: "Your account is not assigned to a specific team. Some metrics may not be available.",
@@ -219,8 +235,8 @@ export default function DashboardPage() {
 
   const metricsToDisplay = [
     displayedDashboardData.dailySales,
-    // Removed totalPointsInRange metric
-    displayedDashboardData.chargebackPercentage,
+    displayedDashboardData.chargebackPercentage, // This is still mock
+    displayedDashboardData.flowThroughRate, // Now dynamically calculated
   ];
   if (topAgentData) {
      const topAgentCardMetric = {
@@ -274,9 +290,9 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {isLoadingMetrics && metricsToDisplay.every(m => m.value === 0 || m.value === '...' || m.value === "N/A") ? (
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4"> {/* Reduced to 3 for the remaining cards */}
-            {[1,2,3].map(i => (
+      {isLoadingMetrics && metricsToDisplay.every(m => (m.value === 0 || m.value === '...' || m.value === "N/A" || (typeof m.value === 'string' && parseFloat(m.value) === 0) )) ? (
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
+            {[1,2,3,4].map(i => (
               <Card key={i} className="h-40 shadow-md flex items-center justify-center">
                   <Loader2 className="h-10 w-10 animate-spin text-primary" />
               </Card>
@@ -284,7 +300,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4"> {/* Reduced to 3 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
             {metricsToDisplay.map((metric) => (
                 <MetricCard key={metric.id} metric={metric} />
             ))}
@@ -307,9 +323,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Removed the TeamDailySubmissionsLineChart section */}
-
     </div>
   );
 }
