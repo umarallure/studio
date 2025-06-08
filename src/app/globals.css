@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -26,8 +27,8 @@ body {
     --muted: 197 15% 92%; /* Very light blue-gray */
     --muted-foreground: 210 20% 40%;
 
-    --accent: 120 73% 75%; /* #90EE90 Dynamic Green */
-    --accent-foreground: 120 20% 20%; /* Dark Green for text on accent */
+    --accent: 39 71% 41%; /* #b17e1e Dark Gold/Brown */
+    --accent-foreground: 39 70% 95%; /* Light Gold/Beige text on accent */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
@@ -49,8 +50,8 @@ body {
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 182 85% 25%; /* New Primary */
     --sidebar-primary-foreground: 0 0% 100%; /* White */
-    --sidebar-accent: 120 73% 75%;
-    --sidebar-accent-foreground: 120 20% 20%;
+    --sidebar-accent: 39 71% 41%; /* #b17e1e Dark Gold/Brown */
+    --sidebar-accent-foreground: 39 70% 95%; /* Light Gold/Beige text on accent */
     --sidebar-border: 197 40% 80%;
     --sidebar-ring: 182 85% 25%; /* New Primary */
   }
@@ -74,8 +75,8 @@ body {
     --muted: 210 20% 15%;
     --muted-foreground: 188 15% 70%;
 
-    --accent: 120 73% 75%; /* #90EE90 Dynamic Green */
-    --accent-foreground: 120 20% 20%; /* Dark Green for text on accent */
+    --accent: 39 71% 41%; /* #b17e1e Dark Gold/Brown */
+    --accent-foreground: 39 70% 95%; /* Light Gold/Beige text on accent */
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
@@ -89,8 +90,8 @@ body {
     --sidebar-foreground: 188 78% 92%;
     --sidebar-primary: 182 85% 25%; /* New Primary */
     --sidebar-primary-foreground: 0 0% 100%; /* White */
-    --sidebar-accent: 120 73% 75%;
-    --sidebar-accent-foreground: 120 20% 20%;
+    --sidebar-accent: 39 71% 41%; /* #b17e1e Dark Gold/Brown */
+    --sidebar-accent-foreground: 39 70% 95%; /* Light Gold/Beige text on accent */
     --sidebar-border: 197 40% 30%;
     --sidebar-ring: 182 85% 25%; /* New Primary */
   }
