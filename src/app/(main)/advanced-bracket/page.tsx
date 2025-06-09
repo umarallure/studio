@@ -10,8 +10,7 @@ import "@/app/styles/bracket.css";
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, doc, type DocumentData, where } from 'firebase/firestore';
 import { mapFirestoreDocToMatchup, mapDocToTournamentSettings } from '@/lib/tournament-config';
-import type { TournamentSettings, Matchup as MatchupType } from '@/lib/types';
-import MatchDetailPanel from '@/components/bracket/MatchDetailPanel';
+import SeriesDetailPopup from '@/components/bracket/SeriesDetailPopup'; // Import the new component
 import { Loader2, AlertTriangle, Info, Trophy } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { format as formatDate, addDays, parseISO } from 'date-fns';
@@ -117,13 +116,15 @@ export default function AdvancedTournamentBracket() {
   const [criticalError, setCriticalError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // State for the new series detail popup
+  const [isSeriesDetailPopupOpen, setIsSeriesDetailPopupOpen] = useState(false);
+  const [selectedMatchupForPopup, setSelectedMatchupForPopup] = useState<{ matchupId: string; roundId: string; team1Name: string; team2Name: string } | null>(null);
+
+
   // Stores raw data: { "1": [Matchup, ...], "2": [Matchup, ...] }
   const [rawMatchDataByRound, setRawMatchDataByRound] = useState<{ [roundId: string]: MatchupType[] }>({});
   // Stores transformed data for react-brackets (7 display rounds for 16 teams)
   const [dynamicDisplayRounds, setDynamicDisplayRounds] = useState<AdvancedRound[] | null>(null);
-
-  const [isMatchDetailPanelOpen, setIsMatchDetailPanelOpen] = useState(false);
-  const [selectedMatchupForPanel, setSelectedMatchupForPanel] = useState<MatchupType | null>(null);
 
   // Effect 1: Fetch latest tournament settings
   useEffect(() => {
@@ -364,8 +365,9 @@ export default function AdvancedTournamentBracket() {
 
   const handleMatchupCardClick = useCallback((seedId: string) => {
     console.log("[AdvBracket] Matchup card clicked, seedId:", seedId);
+    
+    // Use the provided seedId (which should be the matchupId) to find the corresponding raw matchup data
     let foundMatchup: MatchupType | null = null;
-    // Search in the raw data, as this is the source of truth for matchup details
     for (const roundKey in rawMatchDataByRound) {
       const match = rawMatchDataByRound[roundKey].find(m => m.id === seedId);
       if (match) {
@@ -374,34 +376,22 @@ export default function AdvancedTournamentBracket() {
       }
     }
 
-    if (foundMatchup) {
-        // Use the (potentially inferred) names from dynamicDisplayRounds for the check,
-        // but pass the raw foundMatchup to the panel.
-        let displayMatchupTeamsCheck: { team1Name?: string | null, team2Name?: string | null } = {};
-        
-        outerLoop:
-        for (const round of dynamicDisplayRounds || []) {
-            for (const seed of round.seeds) {
-                if (seed.id === seedId) {
-                    displayMatchupTeamsCheck = { team1Name: seed.teams[0]?.name, team2Name: seed.teams[1]?.name };
-                    break outerLoop;
-                }
-            }
-        }
+  if (!foundMatchup || foundMatchup.team1Name.toLowerCase() === "tbd" || foundMatchup.team2Name.toLowerCase() === "tbd") {
+    toast({ title: "Matchup Not Ready", description: "Stats available once teams are determined.", variant: "default" });
+    return;
+  }
+  if (foundMatchup) {
+ const team1Name = foundMatchup.team1Name || "TBD";
+    const team2Name = foundMatchup.team2Name || "TBD";
+    setSelectedMatchupForPopup({ matchupId: foundMatchup.id, roundId: foundMatchup.roundId, team1Name, team2Name });
+ setIsSeriesDetailPopupOpen(true);
+ console.log("[AdvBracket] Opening SeriesDetailPopup for matchup:", foundMatchup.id);
+  } else {
+    console.warn("[AdvBracket] Corresponding raw matchup data not found for seed ID:", clickedSeed.id);
+    toast({ title: "Error", description: "Could not retrieve full match data.", variant: "destructive" });
+ }
 
-        if (!displayMatchupTeamsCheck.team1Name || displayMatchupTeamsCheck.team1Name.toLowerCase() === "tbd" ||
-            !displayMatchupTeamsCheck.team2Name || displayMatchupTeamsCheck.team2Name.toLowerCase() === "tbd") {
-            toast({ title: "Matchup Not Ready", description: "Stats available once teams are determined.", variant: "default" });
-            return;
-        }
-      setSelectedMatchupForPanel(foundMatchup); // Pass the original raw data to panel
-      setIsMatchDetailPanelOpen(true);
-      console.log("[AdvBracket] Opening MatchDetailPanel for matchup:", foundMatchup.id);
-    } else {
-      toast({ title: "Error", description: `Could not find details for this match (ID: ${seedId}). Raw data might be incomplete.`, variant: "destructive" });
-      console.warn("Could not find matchup for ID:", seedId, "in rawMatchDataByRound:", rawMatchDataByRound);
-    }
-  }, [rawMatchDataByRound, dynamicDisplayRounds, toast]);
+  }, [rawMatchDataByRound, dynamicDisplayRounds, toast, setIsSeriesDetailPopupOpen, setSelectedMatchupForPopup]);
 
 
   // --- Render Logic ---
@@ -410,16 +400,6 @@ export default function AdvancedTournamentBracket() {
       <div className="flex flex-col items-center justify-center py-10 space-y-4 min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="text-lg text-foreground font-headline">Loading Tournament Info...</p>
-      </div>
-    );
-  }
-
-  if (criticalError) {
-     return (
-      <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
-        <AlertTriangle className="h-16 w-16 text-destructive" />
-        <h2 className="text-3xl font-headline text-destructive mt-4">Error</h2>
-        <p className="text-muted-foreground max-w-lg">{criticalError}</p>
       </div>
     );
   }
@@ -523,12 +503,16 @@ export default function AdvancedTournamentBracket() {
           </div>
         </div>
       </div>
-      {activeTournament && selectedMatchupForPanel && (
-        <MatchDetailPanel
-            isOpen={isMatchDetailPanelOpen}
-            onOpenChange={setIsMatchDetailPanelOpen}
-            matchup={selectedMatchupForPanel} // This is the raw matchup data
-            tournamentId={activeTournament.id}
+
+      {selectedMatchupForPopup && (
+        <SeriesDetailPopup
+            isOpen={isSeriesDetailPopupOpen}
+            onOpenChange={setIsSeriesDetailPopupOpen}
+            matchupId={selectedMatchupForPopup.matchupId}
+            roundId={selectedMatchupForPopup.roundId}
+            team1Name={selectedMatchupForPopup.team1Name}
+            team2Name={selectedMatchupForPopup.team2Name}
+            tournamentId={activeTournament?.id || null}
         />
       )}
     </>
@@ -631,7 +615,5 @@ function TeamItemInternal({ team, isWinner }: { team: AdvancedTeam | undefined; 
     </div>
   );
 }
-      
-    
 
-    
+

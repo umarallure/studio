@@ -7,12 +7,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 interface RoundColumnProps {
   round: Round;
   isLastRound: boolean;
+  // The react-brackets library provides 'title' and 'roundIndex' directly to the RoundTitleComponent
   onMatchupClick?: (matchup: MatchupType) => void;
 }
 
 export default function RoundColumn({ round, isLastRound, onMatchupClick }: RoundColumnProps) {
   const columnWidth = isLastRound ? "min-w-[320px] sm:min-w-[380px]" : "min-w-[300px] sm:min-w-[350px]";
-
   return (
     <div className={`flex flex-col space-y-4 ${columnWidth}`}>
       <CardHeader className="p-0 mb-2">

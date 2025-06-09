@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, doc } from 'firebase/firestore';
 import { tournamentPrize } from '@/lib/mock-data'; // Static prize for now
-import MatchDetailPanel from '@/components/bracket/MatchDetailPanel';
+import MatchDetailPanel from '@/components/bracket/MatchDetailPanel'; // Added import
 
 const ROUND_NAMES_BASE: { [key: string]: string } = {
   "1": "Round 1",
@@ -358,3 +358,4 @@ export default function BracketPage() {
     </div>
   );
 }
+
