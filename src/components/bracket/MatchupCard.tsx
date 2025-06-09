@@ -7,7 +7,7 @@ import { Swords, CheckCircle2 } from 'lucide-react';
 
 interface MatchupCardProps {
   matchup: Matchup;
-  onClick?: (matchup: Matchup) => void;
+  onClick?: (matchup: Matchup) => void; // Make optional
 }
 
 export default function MatchupCard({ matchup, onClick }: MatchupCardProps) {
@@ -30,9 +30,9 @@ export default function MatchupCard({ matchup, onClick }: MatchupCardProps) {
 
   return (
     <Card 
-      className={`overflow-hidden shadow-md transition-all duration-300 ease-in-out ${seriesConcluded ? 'border-accent' : 'border-border'} ${canOpenDetails ? 'cursor-pointer hover:shadow-xl hover:border-primary/50' : ''}`}
-      onClick={canOpenDetails ? () => onClick?.(matchup) : undefined}
-      title={canOpenDetails ? "Click to see match details" : "Match details available when both teams are set"}
+      className={`overflow-hidden shadow-md transition-all duration-300 ease-in-out ${seriesConcluded ? 'border-accent' : 'border-border'} ${onClick && canOpenDetails ? 'cursor-pointer hover:shadow-xl hover:border-primary/50' : 'cursor-default'}`}
+      onClick={onClick && canOpenDetails ? () => onClick?.(matchup) : undefined}
+      title={onClick && canOpenDetails ? "Click to see match details" : "Match details available when both teams are set"}
     >
       <CardContent className="p-3 sm:p-4">
         <div className="flex flex-col space-y-2">

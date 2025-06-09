@@ -13,7 +13,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, doc } from 'firebase/firestore';
 import { tournamentPrize } from '@/lib/mock-data'; // Static prize for now
-import MatchDetailPanel from '@/components/bracket/MatchDetailPanel'; // Added import
 
 const ROUND_NAMES_BASE: { [key: string]: string } = {
   "1": "Round 1",
@@ -41,27 +40,6 @@ export default function BracketPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [criticalError, setCriticalError] = useState<string | null>(null);
   const { toast } = useToast();
-
-  const [isMatchDetailPanelOpen, setIsMatchDetailPanelOpen] = useState(false);
-  const [selectedMatchupForPanel, setSelectedMatchupForPanel] = useState<MatchupType | null>(null);
-
-  const handleMatchupCardClick = useCallback((matchup: MatchupType) => {
-    console.log("[BracketPage] handleMatchupCardClick triggered for matchup:", matchup.id);
-    if (!matchup.team1Name || matchup.team1Name.toLowerCase() === "tbd" || 
-        !matchup.team2Name || matchup.team2Name.toLowerCase() === "tbd") {
-      toast({
-        title: "Matchup Not Ready",
-        description: "Detailed stats are available once both teams are determined.",
-        variant: "default",
-      });
-      console.log("[BracketPage] Matchup not ready for details panel (handler check).");
-      return;
-    }
-    setSelectedMatchupForPanel(matchup);
-    setIsMatchDetailPanelOpen(true);
-    console.log("[BracketPage] Set selectedMatchupForPanel to:", matchup.id, "and isMatchDetailPanelOpen to true.");
-  }, [toast]);
-
 
   useEffect(() => {
     console.log("[BracketPage Effect 1] Initializing: Fetching latest tournament.");
@@ -246,7 +224,7 @@ export default function BracketPage() {
       unsubscribes.forEach(unsub => unsub());
       clearTimeout(loadingTimeout);
     };
-  }, [activeTournament, toast]); // isLoading was removed here
+  }, [activeTournament, toast]); 
 
   const confirmLiveUpdates = () => {
     toast({
@@ -345,17 +323,9 @@ export default function BracketPage() {
       {tournamentDisplayData && tournamentDisplayData.rounds.length > 0 && (
         <BracketDisplay 
           tournamentData={tournamentDisplayData} 
-          onMatchupClick={handleMatchupCardClick}
         />
       )}
 
-      <MatchDetailPanel 
-        isOpen={isMatchDetailPanelOpen} 
-        onOpenChange={setIsMatchDetailPanelOpen} 
-        matchup={selectedMatchupForPanel}
-        tournamentId={activeTournament?.id || null}
-      />
     </div>
   );
 }
-

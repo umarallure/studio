@@ -6,7 +6,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 interface BracketDisplayProps {
   tournamentData: TournamentData;
-  onMatchupClick?: (matchup: MatchupType) => void;
+  onMatchupClick?: (matchup: MatchupType) => void; // Make optional
 }
 
 export default function BracketDisplay({ tournamentData, onMatchupClick }: BracketDisplayProps) {
@@ -23,7 +23,7 @@ export default function BracketDisplay({ tournamentData, onMatchupClick }: Brack
               key={round.id} 
               round={round} 
               isLastRound={index === tournamentData.rounds.length - 1}
-              onMatchupClick={onMatchupClick}
+              onMatchupClick={onMatchupClick} // Pass down if provided
             />
           ))}
         </div>

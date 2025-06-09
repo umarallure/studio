@@ -7,8 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 interface RoundColumnProps {
   round: Round;
   isLastRound: boolean;
-  // The react-brackets library provides 'title' and 'roundIndex' directly to the RoundTitleComponent
-  onMatchupClick?: (matchup: MatchupType) => void;
+  onMatchupClick?: (matchup: MatchupType) => void; // Make optional
 }
 
 export default function RoundColumn({ round, isLastRound, onMatchupClick }: RoundColumnProps) {
@@ -26,7 +25,7 @@ export default function RoundColumn({ round, isLastRound, onMatchupClick }: Roun
             <MatchupCard 
               key={matchup.id} 
               matchup={matchup}
-              onClick={onMatchupClick} 
+              onClick={onMatchupClick} // Pass down if provided
             />
           ))
         ) : (
