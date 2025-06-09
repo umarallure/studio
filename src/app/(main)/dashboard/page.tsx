@@ -10,15 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
 import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
 import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-status-for-chart-flow';
-// import { getTeamSubmissionsLast30Days } from '@/ai/flows/get-team-submissions-last-30-days-flow'; // Removed import
-
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users, Bug, Target } from 'lucide-react';
+import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users, Target, TrendingUp as TrendingUpIcon, BarChart3, AlertCircle } from 'lucide-react'; // Added BarChart3, AlertCircle
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts'; // Added Legend
 
 interface AvailableCenter {
   id: string;
@@ -34,7 +32,19 @@ const availableCentersForAdmin: AvailableCenter[] = [
 ];
 
 const FIXED_DATE_RANGE_DAYS = 30;
-const TEAM1_FILTER_NAME = "Team 1"; 
+
+// Types for sample chart data
+interface SalesChartPoint {
+  date: string; // YYYY-MM-DD
+  displayDate: string; // Formatted for XAxis
+  sales: number;
+}
+interface ChargebackChartPoint {
+  date: string; // YYYY-MM-DD
+  displayDate: string; // Formatted for XAxis
+  rate: number;
+}
+
 
 export default function DashboardPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -48,10 +58,9 @@ export default function DashboardPage() {
   const [topAgentData, setTopAgentData] = useState<TopAgentMetric | null>(defaultCenterData.topAgentLastMonth || null);
   const [totalSubmittedLast30DaysValue, setTotalSubmittedLast30DaysValue] = useState<number>(0);
 
-  // Removed state variables for the debug card
-  // const [debugLast30DaysSubmittedCount, setDebugLast30DaysSubmittedCount] = useState<number | null>(null);
-  // const [debugFilterApplied, setDebugFilterApplied] = useState<string | null>(null);
-  // const [debugDateRange, setDebugDateRange] = useState<{start: string, end: string} | null>(null);
+  // State for sample chart data
+  const [salesChartData, setSalesChartData] = useState<SalesChartPoint[]>([]);
+  const [chargebackChartData, setChargebackChartData] = useState<ChargebackChartPoint[]>([]);
 
 
   const fixedDateRange = useMemo(() => {
@@ -63,6 +72,34 @@ export default function DashboardPage() {
     };
   }, []); 
 
+  // Effect to generate sample chart data on client-side
+  useEffect(() => {
+    const today = new Date();
+    const generatedSalesData: SalesChartPoint[] = [];
+    const generatedChargebackData: ChargebackChartPoint[] = [];
+  
+    for (let i = 30; i >= 0; i--) { // 31 days, from 30 days ago to today
+      const date = subDays(today, i);
+      const formattedDate = formatDate(date, 'yyyy-MM-dd');
+      const displayDate = formatDate(date, 'MMM d');
+  
+      generatedSalesData.push({
+        date: formattedDate,
+        displayDate: displayDate,
+        sales: Math.floor(Math.random() * (10000 - 3000 + 1) + 3000) 
+      });
+  
+      generatedChargebackData.push({
+        date: formattedDate,
+        displayDate: displayDate,
+        rate: Math.floor(Math.random() * (250 - 80 + 1) + 80) 
+      });
+    }
+    setSalesChartData(generatedSalesData);
+    setChargebackChartData(generatedChargebackData);
+  }, []);
+
+
   const fetchAndDisplayMetrics = useCallback(async (
     filterNameForCards: string | null,
     baseDataForUI: CenterDashboardData,
@@ -70,9 +107,7 @@ export default function DashboardPage() {
   ) => {
     console.log('[DashboardPage] fetchAndDisplayMetrics called. Cards Filter:', filterNameForCards, 'UI Name:', uiCenterName);
     setIsLoadingMetrics(true);
-    // Reset debug state not needed anymore
-    // setDebugLast30DaysSubmittedCount(null); 
-
+    
     const todayStr = formatDate(fixedDateRange.to, 'yyyy-MM-dd');
     const yesterdayStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
 
@@ -82,7 +117,6 @@ export default function DashboardPage() {
         submissionsForYesterdayResult,
         topAgentResult,
         entryStatsResult,
-        // debugSubmissionsResult, // Removed call to debug flow
       ] = await Promise.all([
         getDailySubmissions({ targetDate: todayStr, leadVenderFilter: filterNameForCards }),
         getDailySubmissions({ targetDate: yesterdayStr, leadVenderFilter: filterNameForCards }),
@@ -91,7 +125,6 @@ export default function DashboardPage() {
             leadVenderFilter: filterNameForCards, 
             daysToCover: FIXED_DATE_RANGE_DAYS 
         }),
-        // getTeamSubmissionsLast30Days({ leadVenderFilter: filterNameForCards }), // Removed call
       ]);
 
       setDailySubmissionsForCard({
@@ -138,20 +171,13 @@ export default function DashboardPage() {
         totalSubmittedLast30Days: {
             id: 'totalSubmitted30d',
             title: `Total Submitted (${fixedRangeTextShort})`,
-            value: submittedCountLast30Days, // This uses the result from getEntryStatsByStatusForChart
+            value: submittedCountLast30Days,
             unit: '', 
             trend: 'neutral', 
             icon: ClipboardList,
             description: `Total 'Submitted' entries in the last ${FIXED_DATE_RANGE_DAYS} days.`,
         },
       }));
-
-      // Removed debug logging for the removed flow
-      // console.log(`[DashboardPage] Debug Flow Result - Last 30D Submitted Count for '${debugSubmissionsResult.filterApplied || 'All'}': ${debugSubmissionsResult.submissionCount} (Range: ${debugSubmissionsResult.startDate} - ${debugSubmissionsResult.endDate})`);
-      // setDebugLast30DaysSubmittedCount(debugSubmissionsResult.submissionCount);
-      // setDebugFilterApplied(debugSubmissionsResult.filterApplied);
-      // setDebugDateRange({start: debugSubmissionsResult.startDate, end: debugSubmissionsResult.endDate });
-
 
       console.log(`[DashboardPage] Successfully updated UI data for: ${uiCenterName}. Total Submitted (30D from entryStats): ${submittedCountLast30Days}`);
 
@@ -180,7 +206,7 @@ export default function DashboardPage() {
       setIsLoadingMetrics(false);
       console.log('[DashboardPage] fetchAndDisplayMetrics finished for:', uiCenterName);
     }
-  }, [toast, fixedDateRange.to, fixedDateRange.from]); // Added fixedDateRange.from as a dependency
+  }, [toast, fixedDateRange.to, fixedDateRange.from]);
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -282,6 +308,20 @@ export default function DashboardPage() {
 
   const fixedRangeText = `Last ${FIXED_DATE_RANGE_DAYS} Days (${formatDate(fixedDateRange.from, "LLL d")} - ${formatDate(fixedDateRange.to, "LLL d")})`;
 
+  const customTooltipFormatter = (value: number, name: string, props: any) => {
+    const originalDate = props.payload?.date;
+    const formattedLabel = originalDate ? formatDate(parseISO(originalDate), 'MMM d, yyyy') : name;
+    return [`${value}`, name === 'sales' ? 'Sales' : 'Rate'];
+  };
+
+  const customTooltipLabelFormatter = (label: string, payload: any[]) => {
+    if (payload && payload.length > 0 && payload[0].payload.date) {
+      return formatDate(parseISO(payload[0].payload.date), 'EEEE, MMM d, yyyy');
+    }
+    return label;
+  };
+
+
   return (
     <div className="space-y-8">
       <Card className="shadow sticky top-[calc(theme(spacing.16)_+_1px)] md:top-[calc(theme(spacing.16)_+_1px)] z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -337,6 +377,100 @@ export default function DashboardPage() {
         </>
       )}
 
+      {/* Sample Charts Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+        <Card className="bg-card shadow-lg rounded-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center text-lg">
+              <TrendingUpIcon className="mr-2 h-5 w-5 text-primary" />
+              Sample Daily Sales (Last 31 days)
+            </CardTitle>
+            <CardDescription>Illustrative daily sales trend.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4">
+            {salesChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={salesChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="displayDate" 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} 
+                    stroke="hsl(var(--border))"
+                  />
+                  <YAxis 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    stroke="hsl(var(--border))"
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--background))', 
+                      borderColor: 'hsl(var(--border))',
+                      borderRadius: 'var(--radius)',
+                    }}
+                    labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }}
+                    formatter={customTooltipFormatter}
+                    labelFormatter={customTooltipLabelFormatter}
+                  />
+                  <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
+                  <Line type="monotone" dataKey="sales" name="Sales" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin mr-2" /> Loading sample sales data...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card shadow-lg rounded-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center text-lg">
+               <AlertCircle className="mr-2 h-5 w-5 text-destructive" />
+              Sample Daily Chargeback Rate (Last 31 days)
+            </CardTitle>
+            <CardDescription>Illustrative daily chargeback rate trend.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4">
+             {chargebackChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={chargebackChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="displayDate" 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    stroke="hsl(var(--border))"
+                  />
+                  <YAxis 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    stroke="hsl(var(--border))"
+                  />
+                   <RechartsTooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--background))', 
+                      borderColor: 'hsl(var(--border))',
+                      borderRadius: 'var(--radius)',
+                    }}
+                    labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
+                    itemStyle={{ color: 'hsl(var(--foreground))' }}
+                    formatter={customTooltipFormatter}
+                    labelFormatter={customTooltipLabelFormatter}
+                  />
+                  <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
+                  <Line type="monotone" dataKey="rate" name="Chargeback Rate" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin mr-2" /> Loading sample chargeback data...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+
        {(user?.role === 'teamMember' && !user.teamNameForFilter && !isLoadingMetrics && !isAuthLoading) && (
         <Card className="mt-6">
           <CardHeader>
@@ -352,10 +486,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Debug Card Removed */}
     </div>
   );
 }
-
-    
