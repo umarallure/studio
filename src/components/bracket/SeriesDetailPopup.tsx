@@ -23,7 +23,7 @@ interface SeriesDetailPopupProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   matchupId: string | null;
-  roundId: string | null; // This is the prop coming in, e.g., "1", "2"
+  roundId: string | null; 
   team1Name: string | null;
   team2Name: string | null;
   tournamentId: string | null;
@@ -45,7 +45,7 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
   isOpen,
   onOpenChange,
   matchupId,
-  roundId, // Prop representing the round number as a string
+  roundId, 
   team1Name,
   team2Name,
   tournamentId,
@@ -68,7 +68,6 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
       return;
     }
 
-    // Check if essential props are available before fetching
     if (!matchupId || !roundId || !tournamentId || !team1Name || !team2Name || !tournamentStartDate || !isValid(tournamentStartDate)) {
       setError("Required match details are missing or invalid. Cannot fetch daily stats.");
       setDailyStats([]);
@@ -82,11 +81,9 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
       setDailyStats([]);
 
       try {
-        // 1. Get the 5 scheduled dates for the match
-        // Ensure 'roundNum' is passed as expected by the flow, using the 'roundId' prop value
         const scheduledDatesInput: GetMatchScheduledDatesInput = { 
           tournamentId, 
-          roundNum: roundId, // Correctly map roundId prop to roundNum for the flow
+          roundNum: roundId, 
           matchId: matchupId 
         };
         console.log("[SeriesDetailPopup] Calling getMatchScheduledDates with input:", JSON.stringify(scheduledDatesInput));
@@ -123,7 +120,7 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
         const dailyResultsPromises = sortedScheduledDates.map(dateStr => {
           const dailyResultInput: GetMatchDailyResultInput = {
             tournamentId,
-            roundNum: roundId, // Pass roundId prop as roundNum
+            roundNum: roundId, 
             matchId: matchupId,
             targetDate: dateStr,
           };
@@ -167,9 +164,6 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
     };
 
     fetchSeriesDetails();
-
-  // Ensure all dependencies that could trigger re-fetch are listed.
-  // Key dependencies are isOpen and the props identifying the match.
   }, [isOpen, matchupId, roundId, team1Name, team2Name, tournamentId, tournamentStartDate, toast, resetState]);
 
 
@@ -190,7 +184,7 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-grow p-4 -mx-0">
+        <ScrollArea className="flex-grow p-4"> {/* Removed -mx-0, p-4 applies to viewport content */}
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-10 space-y-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
