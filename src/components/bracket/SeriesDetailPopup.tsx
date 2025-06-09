@@ -175,7 +175,7 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] w-[95%] max-h-[90vh] flex flex-col bg-card">
-        <DialogHeader className="p-4 border-b">
+        <DialogHeader className="p-4 border-b flex-shrink-0">
           <DialogTitle className="text-xl text-primary font-headline">
             Series Details: {team1Name || "Team 1"} vs {team2Name || "Team 2"}
           </DialogTitle>
@@ -184,76 +184,78 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-grow p-4"> {/* Removed -mx-0, p-4 applies to viewport content */}
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-10 space-y-4">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-lg text-foreground">Loading Daily Stats...</p>
-            </div>
-          ) : error ? (
-            <div className="text-center py-10 text-destructive flex flex-col items-center gap-2">
-                <CalendarX className="h-10 w-10"/>
-                <p className="font-semibold">Error Loading Data</p>
-                <p className="text-sm">{error}</p>
-            </div>
-          ) : dailyStats.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-2">
-                <Info className="h-10 w-10"/>
-                <p>No daily data available for this match's scheduled days.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {dailyStats.map((day) => (
-                <Card key={day.originalDate} className="shadow-md border-border/70">
-                  <CardHeader className="p-3 bg-muted/30 rounded-t-md">
-                    <CardTitle className="text-center text-sm font-semibold text-muted-foreground">{day.date}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3 space-y-3">
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className={`font-medium ${day.winner === day.team1Name ? 'text-accent font-bold' : 'text-card-foreground'}`}>{day.team1Name}</span>
-                        <span className="font-mono">{day.team1Score} subs</span>
+        <ScrollArea className="flex-grow min-h-0"> {/* Added min-h-0 */}
+          <div className="p-4"> {/* Moved padding here */}
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <p className="text-lg text-foreground">Loading Daily Stats...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-10 text-destructive flex flex-col items-center gap-2">
+                  <CalendarX className="h-10 w-10"/>
+                  <p className="font-semibold">Error Loading Data</p>
+                  <p className="text-sm">{error}</p>
+              </div>
+            ) : dailyStats.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-2">
+                  <Info className="h-10 w-10"/>
+                  <p>No daily data available for this match's scheduled days.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {dailyStats.map((day) => (
+                  <Card key={day.originalDate} className="shadow-md border-border/70">
+                    <CardHeader className="p-3 bg-muted/30 rounded-t-md">
+                      <CardTitle className="text-center text-sm font-semibold text-muted-foreground">{day.date}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 space-y-3">
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className={`font-medium ${day.winner === day.team1Name ? 'text-accent font-bold' : 'text-card-foreground'}`}>{day.team1Name}</span>
+                          <span className="font-mono">{day.team1Score} subs</span>
+                        </div>
+                        <Progress 
+                          value={maxSubmissionsPerDay > 0 ? (day.team1Score / maxSubmissionsPerDay) * 100 : 0} 
+                          className={`h-2.5 ${day.winner === day.team1Name ? '[&>div]:bg-accent' : '[&>div]:bg-primary'}`} 
+                        />
                       </div>
-                      <Progress 
-                        value={maxSubmissionsPerDay > 0 ? (day.team1Score / maxSubmissionsPerDay) * 100 : 0} 
-                        className={`h-2.5 ${day.winner === day.team1Name ? '[&>div]:bg-accent' : '[&>div]:bg-primary'}`} 
-                      />
-                    </div>
 
-                    <Separator className="my-2"/>
+                      <Separator className="my-2"/>
 
-                    <div className="space-y-1.5">
-                       <div className="flex justify-between items-center text-sm">
-                        <span className={`font-medium ${day.winner === day.team2Name ? 'text-accent font-bold' : 'text-card-foreground'}`}>{day.team2Name}</span>
-                        <span className="font-mono">{day.team2Score} subs</span>
+                      <div className="space-y-1.5">
+                         <div className="flex justify-between items-center text-sm">
+                          <span className={`font-medium ${day.winner === day.team2Name ? 'text-accent font-bold' : 'text-card-foreground'}`}>{day.team2Name}</span>
+                          <span className="font-mono">{day.team2Score} subs</span>
+                        </div>
+                        <Progress 
+                          value={maxSubmissionsPerDay > 0 ? (day.team2Score / maxSubmissionsPerDay) * 100 : 0} 
+                          className={`h-2.5 ${day.winner === day.team2Name ? '[&>div]:bg-accent' : '[&>div]:bg-primary'}`}
+                        />
                       </div>
-                      <Progress 
-                        value={maxSubmissionsPerDay > 0 ? (day.team2Score / maxSubmissionsPerDay) * 100 : 0} 
-                        className={`h-2.5 ${day.winner === day.team2Name ? '[&>div]:bg-accent' : '[&>div]:bg-primary'}`}
-                      />
-                    </div>
-                    
-                    {day.winner && day.status === "Completed" && (
-                        <div className="text-xs text-center pt-2 text-accent font-semibold flex items-center justify-center gap-1">
-                           <Trophy className="h-3 w-3"/> Daily Winner: {day.winner}
-                        </div>
-                    )}
-                     {day.status !== "Completed" && day.status !== "Not Found" && (
-                        <div className="text-xs text-center pt-2 text-muted-foreground">
-                            Status: {day.status}
-                        </div>
-                    )}
-                     {day.status === "Not Found" && (
-                        <div className="text-xs text-center pt-2 text-muted-foreground">
-                            No data recorded for this day.
-                        </div>
-                    )}
+                      
+                      {day.winner && day.status === "Completed" && (
+                          <div className="text-xs text-center pt-2 text-accent font-semibold flex items-center justify-center gap-1">
+                             <Trophy className="h-3 w-3"/> Daily Winner: {day.winner}
+                          </div>
+                      )}
+                       {day.status !== "Completed" && day.status !== "Not Found" && (
+                          <div className="text-xs text-center pt-2 text-muted-foreground">
+                              Status: {day.status}
+                          </div>
+                      )}
+                       {day.status === "Not Found" && (
+                          <div className="text-xs text-center pt-2 text-muted-foreground">
+                              No data recorded for this day.
+                          </div>
+                      )}
 
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </ScrollArea>
       </DialogContent>
     </Dialog>
