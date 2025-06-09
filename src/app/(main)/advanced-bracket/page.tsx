@@ -4,136 +4,127 @@
 import type { ReactNode } from "react";
 import { useState, useEffect, useCallback } from "react";
 import { Bracket, Seed, SeedItem, type RoundProps as ReactBracketsRoundProps } from "react-brackets";
-import { Card } from "@/components/ui/card";
-import "@/app/styles/bracket.css"; // Ensure styles are applied
+import { Card, CardContent } from "@/components/ui/card";
+import "@/app/styles/bracket.css";
 
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, orderBy, limit, getDocs, doc, type DocumentData } from 'firebase/firestore';
 import { mapFirestoreDocToMatchup, mapDocToTournamentSettings } from '@/lib/tournament-config';
 import type { TournamentSettings, Matchup as MatchupType } from '@/lib/types';
-import { Loader2, AlertTriangle, Info } from 'lucide-react';
+import MatchDetailPanel from '@/components/bracket/MatchDetailPanel';
+import { Loader2, AlertTriangle, Info, Trophy } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { format as formatDate, addDays, parseISO } from 'date-fns';
 
-// Define types for the AdvancedBracket's specific data structure (for static data initially)
+// Define types for the AdvancedBracket's specific data structure
 interface AdvancedTeam {
-  name: string | null; 
+  name: string | null;
   score?: number;
 }
 
 interface AdvancedSeedProps {
-  id: number | string;
-  date: string;
-  teams: AdvancedTeam[];
+  id: string; // Match ID from Firestore
+  date: string; // Formatted date for display
+  teams: [AdvancedTeam, AdvancedTeam];
+  // Winner can be implicitly determined by scores for highlighting in TeamItemInternal
 }
 
 interface AdvancedRound extends ReactBracketsRoundProps {
-  title: string; 
+  title: string;
   seeds: AdvancedSeedProps[];
 }
 
-const staticRoundsData: AdvancedRound[] = [
-    // Left side - Quarter Finals
-    {
-      title: "Quarter Finals",
-      seeds: [
-        { id: 1, date: "Wed Jul 05 2023", teams: [{ name: "Team 1", score: 4 }, { name: "Team 2", score: 2 }] },
-        { id: 2, date: "Wed Jul 05 2023", teams: [{ name: "Team 3", score: 5 }, { name: "Team 4", score: 1 }] },
-        { id: 3, date: "Wed Jul 05 2023", teams: [{ name: "Team 5", score: 3 }, { name: "Team 6", score: 2 }] },
-        { id: 4, date: "Wed Jul 05 2023", teams: [{ name: "Team 7", score: 2 }, { name: "Team 8", score: 3 }] },
-      ],
-    },
-    // Left side - Semi Finals
-    {
-      title: "Semi Finals",
-      seeds: [
-        { id: 5, date: "Wed Jul 08 2023", teams: [{ name: "Team 1", score: 2 }, { name: "Team 3", score: 3 }] },
-        { id: 6, date: "Wed Jul 08 2023", teams: [{ name: "Team 5", score: 4 }, { name: "Team 8", score: 1 }] },
-      ],
-    },
-    // Left side - Finals
-    {
-      title: "Finals (Left Path)",
-      seeds: [
-        { id: 7, date: "Wed Jul 12 2023", teams: [{ name: "Team 3", score: 2 }, { name: "Team 5", score: 3 }] },
-      ],
-    },
-    // Championship
-    {
-      title: "Championship",
-      seeds: [
-        { id: 8, date: "Wed Jul 15 2023", teams: [{ name: "Team 5", score: 4 }, { name: "Team 9", score: 3 }] },
-      ],
-    },
-    // Right side - Finals
-    {
-      title: "Finals (Right Path)",
-      seeds: [
-        { id: 9, date: "Wed Jul 12 2023", teams: [{ name: "Team 9", score: 5 }, { name: "Team 15", score: 3 }] },
-      ],
-    },
-    // Right side - Semi Finals
-    {
-      title: "Semi Finals",
-      seeds: [
-        { id: 10, date: "Wed Jul 08 2023", teams: [{ name: "Team 13", score: 1 }, { name: "Team 15", score: 2 }] },
-        { id: 11, date: "Wed Jul 08 2023", teams: [{ name: "Team 9", score: 5 }, { name: "Team 11", score: 3 }] },
-      ],
-    },
-    // Right side - Quarter Finals
-    {
-      title: "Quarter Finals",
-      seeds: [
-        { id: 12, date: "Wed Jul 05 2023", teams: [{ name: "Team 15", score: 3 }, { name: "Team 16", score: 1 }] },
-        { id: 13, date: "Wed Jul 05 2023", teams: [{ name: "Team 13", score: 5 }, { name: "Team 14", score: 4 }] },
-        { id: 14, date: "Wed Jul 05 2023", teams: [{ name: "Team 11", score: 3 }, { name: "Team 12", score: 2 }] },
-        { id: 15, date: "Wed Jul 05 2023", teams: [{ name: "Team 9", score: 4 }, { name: "Team 10", score: 1 }] },
-      ],
-    },
-];
+const getDisplayRoundTitle = (displayRoundIndex: number, teamCount: number): string => {
+  // This function assumes a standard single elimination bracket progression.
+  // Titles are based on a 16-team (4-round) tournament progressing to the 7-part display.
+  if (teamCount === 16) {
+    switch (displayRoundIndex) {
+      case 0: return "Quarter Finals"; // Left QF (Real Round 2 if Round 1 was Round-of-16) - this needs adjustment if we have a Round-of-16
+      case 1: return "Semi Finals";  // Left SF
+      case 2: return "Finals";       // Left F (Effectively a semi-final for the whole tournament)
+      case 3: return "Championship"; // Grand Final
+      case 4: return "Finals";       // Right F (Effectively other semi-final)
+      case 5: return "Semi Finals";  // Right SF
+      case 6: return "Quarter Finals"; // Right QF
+      default: return `Round ${displayRoundIndex + 1}`;
+    }
+  } else if (teamCount === 8) { // 3 real rounds, 5 display rounds (QF, SF, Champ, SF, QF)
+     switch (displayRoundIndex) {
+      case 0: return "Semi Finals"; // Left SF (Real Round 2)
+      case 1: return "Finals";    // Left F (Real Round 3 part 1)
+      case 2: return "Championship"; // (Real Round 3 part 2 or actual Final) - logic might need specific team count handling for structure
+      case 3: return "Finals";    // Right F
+      case 4: return "Semi Finals"; // Right SF
+      default: return `Round ${displayRoundIndex + 1}`;
+    }
+  }
+  // Default for other team counts or if logic isn't exhaustive
+  return `Display Round ${displayRoundIndex + 1}`;
+};
+
+
+const mapMatchupToAdvancedSeed = (matchup: MatchupType, tournamentStartDate: Date): AdvancedSeedProps => {
+  const roundNum = parseInt(matchup.roundId, 10);
+  // For display, use the start of the week for that round.
+  // The actual match days within that week are handled by the dailyResults.
+  const matchWeekStartDate = addDays(tournamentStartDate, (roundNum - 1) * 7);
+
+  return {
+    id: matchup.id,
+    date: formatDate(matchWeekStartDate, "MMM d, yyyy"), // Displaying start of the week for simplicity
+    teams: [
+      { name: matchup.team1Name, score: matchup.team1DailyWins },
+      { name: matchup.team2Name, score: matchup.team2DailyWins },
+    ],
+  };
+};
 
 export default function AdvancedTournamentBracket() {
   const [activeTournament, setActiveTournament] = useState<TournamentSettings | null>(null);
   const [isLoadingTournament, setIsLoadingTournament] = useState(true);
-  const [isLoadingBracketData, setIsLoadingBracketData] = useState(false); // Initially false until tournament is loaded
+  const [isLoadingBracketData, setIsLoadingBracketData] = useState(false);
   const [criticalError, setCriticalError] = useState<string | null>(null);
   const { toast } = useToast();
-  
-  // State to hold raw fetched match data by round, before transformation
-  const [rawMatchDataByRound, setRawMatchDataByRound] = useState<{ [roundId: string]: MatchupType[] }>({});
 
-  // State to hold the transformed rounds data for the bracket display
-  // For now, it will use static data. Later, it will be populated from rawMatchDataByRound
-  const [displayRounds, setDisplayRounds] = useState<AdvancedRound[]>(staticRoundsData);
+  const [rawMatchDataByRound, setRawMatchDataByRound] = useState<{ [roundId: string]: MatchupType[] }>({});
+  const [dynamicDisplayRounds, setDynamicDisplayRounds] = useState<AdvancedRound[] | null>(null);
+
+  const [isMatchDetailPanelOpen, setIsMatchDetailPanelOpen] = useState(false);
+  const [selectedMatchupForPanel, setSelectedMatchupForPanel] = useState<MatchupType | null>(null);
 
   // Effect 1: Fetch latest tournament settings
   useEffect(() => {
-    console.log("[AdvancedBracket Effect 1] Initializing: Fetching latest tournament settings.");
     setIsLoadingTournament(true);
     setCriticalError(null);
     const fetchLatestTournament = async () => {
       try {
         const tournamentsRef = collection(db, "tournaments");
-        const q = query(tournamentsRef, orderBy("createdAt", "desc"), limit(1));
-        const querySnapshot = await getDocs(q);
+        // Fetch the tournament that is not "Completed", or the latest one if all are completed.
+        let q = query(tournamentsRef, where("status", "!=", "Completed"), orderBy("status"), orderBy("createdAt", "desc"), limit(1));
+        let querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-          setCriticalError("No tournaments found. Please create a tournament first.");
+          // If no non-completed tournament, fetch the absolute latest one
+          q = query(tournamentsRef, orderBy("createdAt", "desc"), limit(1));
+          querySnapshot = await getDocs(q);
+        }
+        
+        if (querySnapshot.empty) {
+          setCriticalError("No tournaments found. Please create one first.");
           setActiveTournament(null);
         } else {
           const tournamentDoc = querySnapshot.docs[0];
           const settings = mapDocToTournamentSettings(tournamentDoc.data(), tournamentDoc.id);
-          
           if (!settings || !settings.id || typeof settings.numberOfRounds !== 'number' || settings.numberOfRounds < 0) {
-            setCriticalError(`Fetched tournament "${settings?.name || 'Unknown'}" has invalid configuration.`);
+            setCriticalError(`Fetched tournament "${settings?.name || 'Unknown'}" has invalid configuration (ID or numberOfRounds missing/invalid).`);
             setActiveTournament(null);
           } else {
             setActiveTournament(settings);
-            console.log("[AdvancedBracket Effect 1] Active tournament set:", settings.name, "ID:", settings.id, "Rounds:", settings.numberOfRounds);
           }
         }
       } catch (error) {
-        console.error("[AdvancedBracket Effect 1] Error fetching latest tournament:", error);
-        setCriticalError("Failed to load tournament settings.");
+        console.error("Error fetching latest tournament:", error);
+        setCriticalError("Failed to load tournament settings. Check console for details.");
         setActiveTournament(null);
       } finally {
         setIsLoadingTournament(false);
@@ -145,106 +136,231 @@ export default function AdvancedTournamentBracket() {
   // Effect 2: Fetch match data when activeTournament is set
   useEffect(() => {
     if (!activeTournament || !activeTournament.id || typeof activeTournament.numberOfRounds !== 'number' || activeTournament.numberOfRounds <= 0) {
-      if (!isLoadingTournament && !criticalError && activeTournament && activeTournament.numberOfRounds === 0) {
-        console.log(`[AdvancedBracket Effect 2] Tournament "${activeTournament.name}" has 0 rounds. No bracket data to fetch.`);
-        setIsLoadingBracketData(false); // Ensure loading is false for 0-round tournaments
+      if (!isLoadingTournament && activeTournament && activeTournament.numberOfRounds === 0) {
+        setIsLoadingBracketData(false);
+        setDynamicDisplayRounds([]); // Explicitly set to empty array for 0 rounds
       } else if (!isLoadingTournament && !activeTournament && !criticalError) {
-        // If no tournament was found or there was an error handled by criticalError already.
         setIsLoadingBracketData(false);
       }
       return;
     }
 
-    console.log(`[AdvancedBracket Effect 2] Active tournament: "${activeTournament.name}". Setting up listeners for ${activeTournament.numberOfRounds} rounds.`);
     setIsLoadingBracketData(true);
-    // No criticalError reset here, as it might come from tournament fetching.
-    // We only set specific bracket data errors if they occur.
-    setRawMatchDataByRound({}); // Reset raw data
+    setRawMatchDataByRound({});
+    setDynamicDisplayRounds(null);
 
     const unsubscribes: (() => void)[] = [];
-    let roundsProcessedCount = 0;
+    let roundsDataCollectedCount = 0;
     const totalListenersExpected = activeTournament.numberOfRounds;
-    const initialLoadTracker: { [roundId: string]: boolean } = {};
 
-
-    const checkAllInitialLoadsComplete = () => {
-      if (Object.keys(initialLoadTracker).length === totalListenersExpected) {
-        console.log(`[AdvancedBracket Effect 2] All ${totalListenersExpected} rounds processed initial data/error. Setting isLoadingBracketData to false.`);
-        setIsLoadingBracketData(false);
-         // In the future, data transformation logic would go here.
-        console.log("[AdvancedBracket Effect 2] Placeholder: All raw data fetched. Current rawMatchDataByRound:", rawMatchDataByRound);
-      }
-    };
+    const allRoundsData: { [key: string]: MatchupType[] } = {};
 
     for (let i = 1; i <= activeTournament.numberOfRounds; i++) {
       const roundIdStr = String(i);
-      initialLoadTracker[roundIdStr] = false; // Mark as not yet loaded
-
       const matchesCollectionRef = collection(db, "tournaments", activeTournament.id, "rounds", roundIdStr, 'matches');
-      const qMatches = query(matchesCollectionRef, orderBy('__name__')); // Order by match ID (e.g., match1, match2)
-      console.log(`[AdvancedBracket Effect 2] Setting up listener for Round ${roundIdStr}`);
+      const qMatches = query(matchesCollectionRef, orderBy('__name__'));
 
       const unsubscribeRound = onSnapshot(qMatches, (snapshot) => {
         const matchupsForRound: MatchupType[] = [];
         snapshot.forEach((matchDoc) => {
-          // Using mapFirestoreDocToMatchup for consistency, assuming it handles the 'fields' structure.
           const matchup = mapFirestoreDocToMatchup(matchDoc.id, roundIdStr, matchDoc.data());
           if (matchup) {
             matchupsForRound.push(matchup);
-          } else {
-            console.warn(`[AdvancedBracket Effect 2] Failed to map matchDoc ${matchDoc.id} in Round ${roundIdStr}`);
           }
         });
         
-        setRawMatchDataByRound(prev => {
-          const updatedRawData = { ...prev, [roundIdStr]: matchupsForRound };
-          // console.log(`[AdvancedBracket Effect 2] Raw data updated for Round ${roundIdStr}. Current full rawMatchDataByRound:`, updatedRawData);
-          return updatedRawData;
-        });
+        allRoundsData[roundIdStr] = matchupsForRound;
+        
+        // Check if this is the first time data for this round is collected
+        if (!rawMatchDataByRound[roundIdStr] || rawMatchDataByRound[roundIdStr].length === 0 && matchupsForRound.length > 0) {
+            if (Object.keys(rawMatchDataByRound).filter(k => rawMatchDataByRound[k].length > 0 ).length < roundsDataCollectedCount +1) {
+                 // Only increment if it's a new round providing data or if previously empty
+            }
+        }
+         // Check if all expected rounds have at least been attempted (even if some are empty initially)
+        const currentCollectedRoundKeys = Object.keys(allRoundsData);
+        let allExpectedRoundsPresent = true;
+        for(let r = 1; r <= totalListenersExpected; r++){
+            if(!currentCollectedRoundKeys.includes(String(r))){
+                allExpectedRoundsPresent = false;
+                break;
+            }
+        }
 
-        if (!initialLoadTracker[roundIdStr]) {
-            initialLoadTracker[roundIdStr] = true;
-            roundsProcessedCount++;
-            console.log(`[AdvancedBracket Effect 2] Initial data loaded for Round ${roundIdStr} (${roundsProcessedCount}/${totalListenersExpected}).`);
-            checkAllInitialLoadsComplete();
+        if (allExpectedRoundsPresent) {
+          setRawMatchDataByRound({...allRoundsData}); // Update with the latest snapshot of all rounds
         }
 
       }, (error) => {
-        console.error(`[AdvancedBracket Effect 2] Error fetching matchups for Round ${roundIdStr}:`, error);
+        console.error(`Error fetching matchups for Round ${roundIdStr}:`, error);
         toast({
           title: `Error Loading Round ${roundIdStr}`,
-          description: "Could not load data for this round. Display may be incomplete.",
+          description: "Could not load data for this round.",
           variant: "destructive",
         });
-        if (!initialLoadTracker[roundIdStr]) {
-            initialLoadTracker[roundIdStr] = true; // Mark as processed even on error for loading state
-            roundsProcessedCount++;
-            console.log(`[AdvancedBracket Effect 2] Error on initial load for Round ${roundIdStr} (${roundsProcessedCount}/${totalListenersExpected}).`);
-            checkAllInitialLoadsComplete();
+         allRoundsData[roundIdStr] = []; // Ensure round exists in keys even on error
+         const currentCollectedRoundKeys = Object.keys(allRoundsData);
+         let allExpectedRoundsPresentOnError = true;
+         for(let r = 1; r <= totalListenersExpected; r++){
+            if(!currentCollectedRoundKeys.includes(String(r))){
+                allExpectedRoundsPresentOnError = false;
+                break;
+            }
         }
-        // Optionally set a partial error state for the UI if needed
+        if(allExpectedRoundsPresentOnError){
+            setRawMatchDataByRound({...allRoundsData});
+        }
       });
       unsubscribes.push(unsubscribeRound);
     }
 
     return () => {
-      console.log("[AdvancedBracket Effect 2] Cleanup: Unsubscribing from Firestore listeners.");
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [activeTournament, isLoadingTournament, toast]); // Removed rawMatchDataByRound to avoid re-triggering on its own update
+  }, [activeTournament, isLoadingTournament, toast]);
 
 
-  // --- Rendering Logic (using displayRounds, which is static for now) ---
-  const leftPathRounds = displayRounds.slice(0, 3);
-  const championshipRound = displayRounds.slice(3, 4);
-  const rightPathRoundsData = displayRounds.slice(4);
-  
-  // Ensure right path seeds are reversed for correct visual order when mirrored
-  const rightPathRounds = rightPathRoundsData.map(round => ({
-    ...round,
-    seeds: [...round.seeds].reverse(),
-  }));
+  // Effect 3: Transform rawMatchDataByRound into dynamicDisplayRounds
+  useEffect(() => {
+    if (!activeTournament || !activeTournament.startDate || Object.keys(rawMatchDataByRound).length === 0) {
+      if (activeTournament && activeTournament.numberOfRounds > 0 && !isLoadingBracketData && Object.keys(rawMatchDataByRound).length < activeTournament.numberOfRounds) {
+        // Still waiting for all raw round data
+      } else if (activeTournament && activeTournament.numberOfRounds === 0) {
+        setDynamicDisplayRounds([]); // Handle 0-round tournament
+      }
+      return;
+    }
 
+    // Ensure all expected rounds are present in rawMatchDataByRound before transforming
+    let allRawRoundsAvailable = true;
+    for (let i = 1; i <= activeTournament.numberOfRounds; i++) {
+        if (!rawMatchDataByRound[String(i)]) {
+            allRawRoundsAvailable = false;
+            break;
+        }
+    }
+    if (!allRawRoundsAvailable) {
+        // console.log("Waiting for all raw round data before transforming...");
+        setIsLoadingBracketData(true); // Keep loading if not all raw rounds are ready
+        return;
+    }
+
+
+    const newDisplayRounds: AdvancedRound[] = [];
+    const { numberOfRounds, teamCount } = activeTournament;
+
+    // This transformation logic is for a 16-TEAM (4 real rounds) tournament
+    // leading to a 7-part display structure.
+    // It needs to be adapted for 8-team (3 real rounds -> 5 display parts) etc.
+    if (teamCount === 16 && numberOfRounds === 4) {
+      const realRound1 = rawMatchDataByRound['1'] || []; // 8 matches
+      const realRound2 = rawMatchDataByRound['2'] || []; // 4 matches
+      const realRound3 = rawMatchDataByRound['3'] || []; // 2 matches
+      const realRound4 = rawMatchDataByRound['4'] || []; // 1 match
+
+      // Helper to create placeholder seeds if data is missing
+      const createPlaceholderSeeds = (count: number, roundNumForDate: number): AdvancedSeedProps[] => {
+        return Array.from({ length: count }, (_, i) => ({
+          id: `placeholder-r${roundNumForDate}-m${i}`,
+          date: formatDate(addDays(activeTournament.startDate, (roundNumForDate - 1) * 7), "MMM d, yyyy"),
+          teams: [{ name: "TBD", score: 0 }, { name: "TBD", score: 0 }],
+        }));
+      };
+      
+      // Ensure correct number of matches for each real round before slicing
+      const expectedMatchesR1 = 8, expectedMatchesR2 = 4, expectedMatchesR3 = 2, expectedMatchesR4 = 1;
+
+      // Left Quarter Finals (Display Round 0) - from Real Round 1, first 4 matches
+      newDisplayRounds.push({
+        title: getDisplayRoundTitle(0, teamCount),
+        seeds: realRound1.slice(0, expectedMatchesR1 / 2).map(m => mapMatchupToAdvancedSeed(m, activeTournament.startDate))
+               .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR1 / 2) - realRound1.slice(0, expectedMatchesR1 / 2).length), 1)),
+      });
+      // Left Semi Finals (Display Round 1) - from Real Round 2, first 2 matches
+      newDisplayRounds.push({
+        title: getDisplayRoundTitle(1, teamCount),
+        seeds: realRound2.slice(0, expectedMatchesR2 / 2).map(m => mapMatchupToAdvancedSeed(m, activeTournament.startDate))
+               .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR2 / 2) - realRound2.slice(0, expectedMatchesR2 / 2).length), 2)),
+      });
+      // Left Finals (Display Round 2) - from Real Round 3, first 1 match
+      newDisplayRounds.push({
+        title: getDisplayRoundTitle(2, teamCount),
+        seeds: realRound3.slice(0, expectedMatchesR3 / 2).map(m => mapMatchupToAdvancedSeed(m, activeTournament.startDate))
+               .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR3 / 2) - realRound3.slice(0, expectedMatchesR3 / 2).length), 3)),
+      });
+      // Championship (Display Round 3) - from Real Round 4, 1 match
+      newDisplayRounds.push({
+        title: getDisplayRoundTitle(3, teamCount),
+        seeds: realRound4.map(m => mapMatchupToAdvancedSeed(m, activeTournament.startDate))
+               .concat(createPlaceholderSeeds(Math.max(0, expectedMatchesR4 - realRound4.length), 4)),
+      });
+      // Right Finals (Display Round 4) - from Real Round 3, second 1 match (seeds reversed)
+      newDisplayRounds.push({
+        title: getDisplayRoundTitle(4, teamCount),
+        seeds: realRound3.slice(expectedMatchesR3 / 2).map(m => mapMatchupToAdvancedSeed(m, activeTournament.startDate)).reverse()
+               .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR3 / 2) - realRound3.slice(expectedMatchesR3 / 2).length), 3)),
+      });
+      // Right Semi Finals (Display Round 5) - from Real Round 2, second 2 matches (seeds reversed)
+      newDisplayRounds.push({
+        title: getDisplayRoundTitle(5, teamCount),
+        seeds: realRound2.slice(expectedMatchesR2 / 2).map(m => mapMatchupToAdvancedSeed(m, activeTournament.startDate)).reverse()
+                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR2 / 2) - realRound2.slice(expectedMatchesR2 / 2).length), 2)),
+      });
+      // Right Quarter Finals (Display Round 6) - from Real Round 1, second 4 matches (seeds reversed)
+      newDisplayRounds.push({
+        title: getDisplayRoundTitle(6, teamCount),
+        seeds: realRound1.slice(expectedMatchesR1 / 2).map(m => mapMatchupToAdvancedSeed(m, activeTournament.startDate)).reverse()
+               .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR1 / 2) - realRound1.slice(expectedMatchesR1 / 2).length), 1)),
+      });
+    } else {
+      // Basic handling for other team counts, or if data is not as expected for 16 teams
+      // This part would need more robust logic for different tournament sizes (8-team, 4-team)
+      // For now, it will likely result in an empty or partially filled bracket if not 16 teams.
+      setCriticalError(`Bracket display logic currently optimized for 16-team tournaments. This tournament has ${teamCount} teams.`);
+      setDynamicDisplayRounds([]); // Show an empty bracket
+      setIsLoadingBracketData(false);
+      return;
+    }
+
+    setDynamicDisplayRounds(newDisplayRounds);
+    setIsLoadingBracketData(false); // Transformation complete
+  }, [rawMatchDataByRound, activeTournament, isLoadingBracketData]); // Added isLoadingBracketData to dep array
+
+
+  const handleMatchupCardClick = useCallback((seedId: string) => {
+    let foundMatchup: MatchupType | null = null;
+    // Find the matchup in rawMatchDataByRound using the seedId
+    for (const roundKey in rawMatchDataByRound) {
+      const match = rawMatchDataByRound[roundKey].find(m => m.id === seedId);
+      if (match) {
+        foundMatchup = match;
+        break;
+      }
+    }
+
+    if (foundMatchup) {
+        if (!foundMatchup.team1Name || foundMatchup.team1Name.toLowerCase() === "tbd" ||
+            !foundMatchup.team2Name || foundMatchup.team2Name.toLowerCase() === "tbd") {
+            toast({
+                title: "Matchup Not Ready",
+                description: "Detailed stats are available once both teams are determined for this match.",
+                variant: "default",
+            });
+            return;
+        }
+      setSelectedMatchupForPanel(foundMatchup);
+      setIsMatchDetailPanelOpen(true);
+    } else {
+      toast({
+        title: "Error",
+        description: "Could not find details for the selected match.",
+        variant: "destructive",
+      });
+    }
+  }, [rawMatchDataByRound, toast]);
+
+
+  // --- Rendering Logic ---
   if (isLoadingTournament) {
     return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 min-h-[calc(100vh-200px)]">
@@ -254,7 +370,7 @@ export default function AdvancedTournamentBracket() {
     );
   }
 
-  if (criticalError && !activeTournament) { // Only show critical error if no tournament could be loaded at all
+  if (criticalError) {
      return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
         <AlertTriangle className="h-16 w-16 text-destructive" />
@@ -263,13 +379,13 @@ export default function AdvancedTournamentBracket() {
       </div>
     );
   }
-  
-  if (!activeTournament && !isLoadingTournament) { // Handles case where no tournaments exist but no fetch error
+
+  if (!activeTournament && !isLoadingTournament) {
     return (
       <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
         <Info className="h-16 w-16 text-primary" />
         <h2 className="text-3xl font-headline text-primary mt-4">No Tournament Active</h2>
-        <p className="text-muted-foreground max-w-lg">Please create or select a tournament.</p>
+        <p className="text-muted-foreground max-w-lg">Please create or select a tournament. Or check Firestore for data.</p>
       </div>
     );
   }
@@ -284,78 +400,104 @@ export default function AdvancedTournamentBracket() {
     );
   }
 
+  if (isLoadingBracketData || !dynamicDisplayRounds) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 space-y-4 min-h-[calc(100vh-200px)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="text-lg text-foreground font-headline">Loading Bracket Data for {activeTournament?.name || 'tournament'}...</p>
+         <p className="text-sm text-muted-foreground">Fetched {Object.keys(rawMatchDataByRound).length} / {activeTournament?.numberOfRounds} rounds from Firestore so far.</p>
+      </div>
+    );
+  }
+  
+  if (dynamicDisplayRounds.length === 0 && activeTournament && activeTournament.numberOfRounds > 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 space-y-4 min-h-[calc(100vh-200px)]">
+        <Info className="h-16 w-16 text-primary" />
+        <p className="text-lg text-foreground font-headline">No match data found for "{activeTournament.name}".</p>
+        <p className="text-muted-foreground max-w-lg">Ensure matches are populated in Firestore under the rounds for this tournament.</p>
+      </div>
+    );
+  }
+  
+  // For 16-team (7 display parts)
+  const leftPathRounds = dynamicDisplayRounds.slice(0, 3);      // QF-L, SF-L, F-L
+  const championshipRound = dynamicDisplayRounds.slice(3, 4);  // Championship
+  const rightPathRounds = dynamicDisplayRounds.slice(4);       // F-R, SF-R, QF-R
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-2 text-center font-headline text-primary">
-        {activeTournament?.name || "Tournament Bracket"} (Advanced View)
+      <h1 className="text-2xl font-bold mb-2 text-center font-headline text-primary flex items-center justify-center gap-3">
+        <Trophy /> {activeTournament?.name || "Tournament Bracket"} ({activeTournament?.teamCount}-Team Advanced View)
       </h1>
-      {isLoadingBracketData && activeTournament && activeTournament.numberOfRounds > 0 && (
-         <p className="text-center text-sm text-muted-foreground mb-4 flex items-center justify-center">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading live bracket data... ({Object.values(rawMatchDataByRound).flat().length} matches fetched so far)
-        </p>
-      )}
-       <p className="text-center text-muted-foreground mb-6 text-xs">
-        This is an advanced bracket view. For detailed daily results, see the main <a href="/bracket" className="underline text-primary hover:text-primary/80">Bracket Page</a>.
-        <br/>Currently displaying static sample data. Dynamic data is being fetched in the background (check console).
+       <p className="text-center text-muted-foreground mb-6 text-sm">
+        Displaying series scores (daily wins). Click on a match to see daily breakdown.
       </p>
       
       <div className="overflow-x-auto bg-card p-2 rounded-lg shadow-lg">
         <div className="min-w-[1600px] p-4"> {/* Adjust min-width as needed */}
           <div className="flex justify-center items-start">
-            {/* Left side of the bracket */}
-            <div className="flex-initial mx-2">
-              <Bracket
-                rounds={leftPathRounds}
-                renderSeedComponent={CustomSeedInternal}
-                roundTitleComponent={RoundTitleInternal}
-              />
-            </div>
-
-            {/* Championship in the middle */}
-            <div className="flex-initial mx-2 pt-[calc(3*6rem+1.5rem)]"> {/* Adjust pt for vertical alignment based on seed height */}
-              {championshipRound.length > 0 ? (
+            {leftPathRounds.length > 0 && (
+              <div className="flex-initial mx-2">
                 <Bracket
-                  rounds={championshipRound}
-                  renderSeedComponent={CustomSeedInternal}
-                  roundTitleComponent={RoundTitleInternal}
-                />
-              ) : (
-                <div className="w-[220px] text-center text-muted-foreground">Championship TBD</div>
-              )}
-            </div>
-
-            {/* Right side of the bracket (mirrored) */}
-            <div className="flex-initial mx-2">
-              <div className="mirror-bracket">
-                <Bracket
-                  rounds={rightPathRounds}
-                  renderSeedComponent={(props: any) => CustomSeedInternal({ ...props, isRightSide: true })}
+                  rounds={leftPathRounds}
+                  renderSeedComponent={(props: any) => <CustomSeedInternal {...props} onMatchClick={handleMatchupCardClick} />}
                   roundTitleComponent={RoundTitleInternal}
                 />
               </div>
-            </div>
+            )}
+
+            {championshipRound.length > 0 && (
+              <div className="flex-initial mx-2 pt-[calc(3*6rem+1.5rem)]"> {/* Adjust pt for vertical alignment based on seed height of QF seeds */}
+                <Bracket
+                  rounds={championshipRound}
+                  renderSeedComponent={(props: any) => <CustomSeedInternal {...props} onMatchClick={handleMatchupCardClick} />}
+                  roundTitleComponent={RoundTitleInternal}
+                />
+              </div>
+            )}
+            
+            {rightPathRounds.length > 0 && (
+              <div className="flex-initial mx-2">
+                <div className="mirror-bracket">
+                  <Bracket
+                    rounds={rightPathRounds}
+                    renderSeedComponent={(props: any) => <CustomSeedInternal {...props} isRightSide={true} onMatchClick={handleMatchupCardClick} />}
+                    roundTitleComponent={RoundTitleInternal}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
+      {activeTournament && selectedMatchupForPanel && (
+        <MatchDetailPanel
+            isOpen={isMatchDetailPanelOpen}
+            onOpenChange={setIsMatchDetailPanelOpen}
+            matchup={selectedMatchupForPanel}
+            tournamentId={activeTournament.id}
+        />
+      )}
     </div>
   )
 }
 
 // Internal components for rendering the bracket - using theme colors
-
 function RoundTitleInternal({ title, roundIndex }: { title: ReactNode; roundIndex: number }) {
   return <div className="text-center text-lg font-semibold text-muted-foreground mb-3 mt-2 py-1 px-3 bg-muted/50 rounded-md">{String(title)}</div>;
 }
 
-function CustomSeedInternal({
-  seed,
-  breakpoint, // This prop comes from react-brackets
-  roundIndex,
-  seedIndex,
-  isRightSide = false,
-}: { seed: AdvancedSeedProps; breakpoint: string; roundIndex: number; seedIndex: number; isRightSide?: boolean }) {
-  
+interface CustomSeedInternalProps {
+  seed: AdvancedSeedProps;
+  breakpoint: string; // This prop comes from react-brackets
+  roundIndex: number;
+  seedIndex: number;
+  isRightSide?: boolean;
+  onMatchClick?: (seedId: string) => void;
+}
+
+function CustomSeedInternal({ seed, breakpoint, roundIndex, seedIndex, isRightSide = false, onMatchClick }: CustomSeedInternalProps) {
   const team1 = seed.teams[0];
   const team2 = seed.teams[1];
 
@@ -363,17 +505,23 @@ function CustomSeedInternal({
   let winnerIndex: 0 | 1 | undefined = undefined;
 
   if (team1?.score !== undefined && team2?.score !== undefined) {
-    if (team1.score > team2.score) {
+    if (team1.score > team2.score && team1.score >=3) { // Assuming first to 3 wins series
       winnerIndex = 0;
       winnerName = team1.name;
-    } else if (team2.score > team1.score) {
+    } else if (team2.score > team1.score && team2.score >=3) {
       winnerIndex = 1;
       winnerName = team2.name;
+    } else if (team1.score >=3 && (!team2.name || team2.name.toLowerCase() === "tbd")) { // Team1 won by default
+        winnerIndex = 0;
+        winnerName = team1.name;
+    } else if (team2.score >=3 && (!team1.name || team1.name.toLowerCase() === "tbd")) { // Team2 won by default
+        winnerIndex = 1;
+        winnerName = team2.name;
     }
-  } else if (team1?.name && team1.name.toLowerCase() !== "tbd" && team1.score !== undefined && (!team2?.name || team2.name.toLowerCase() === "tbd")) {
+  } else if (team1?.name && team1.name.toLowerCase() !== "tbd" && team1.score !== undefined && team1.score >=3 && (!team2?.name || team2.name.toLowerCase() === "tbd")) {
       winnerIndex = 0;
       winnerName = team1.name;
-  } else if (team2?.name && team2.name.toLowerCase() !== "tbd" && team2.score !== undefined && (!team1?.name || team1.name.toLowerCase() === "tbd")) {
+  } else if (team2?.name && team2.name.toLowerCase() !== "tbd" && team2.score !== undefined && team2.score >=3 && (!team1?.name || team1.name.toLowerCase() === "tbd")) {
       winnerIndex = 1;
       winnerName = team2.name;
   }
@@ -381,31 +529,43 @@ function CustomSeedInternal({
   const seedWrapperStyle = isRightSide ? { transform: "scaleX(-1)" } : {};
   const seedContentStyle = isRightSide ? { transform: "scaleX(-1)" } : {};
 
+  const canOpenDetails = onMatchClick && team1?.name && team1.name.toLowerCase() !== "tbd" && team2?.name && team2.name.toLowerCase() !== "tbd";
+  const cardCursorClass = canOpenDetails ? 'cursor-pointer hover:shadow-xl hover:border-primary/50' : 'cursor-default';
+  const cardTitle = canOpenDetails ? "Click for daily match details" : "Daily details available when both teams are set";
+
+
   return (
     <Seed mobileBreakpoint={breakpoint} style={seedWrapperStyle}>
       <SeedItem className="bg-transparent border-none shadow-none">
-        <div className="flex flex-col items-center" style={seedContentStyle}>
+        <div 
+            className={`flex flex-col items-center ${cardCursorClass}`} 
+            style={seedContentStyle}
+            onClick={() => canOpenDetails && onMatchClick?.(seed.id)}
+            title={cardTitle}
+        >
           <Card className="w-[220px] rounded-md overflow-hidden shadow-md border-border">
-            <div className="flex flex-col">
-              <TeamItemInternal team={team1} isWinner={winnerIndex === 0} />
-              <div className="border-t border-border/50"></div>
-              <TeamItemInternal team={team2} isWinner={winnerIndex === 1} />
-            </div>
-            {winnerName && (
-              <div className="text-xs font-bold py-1 px-3 text-center bg-primary text-primary-foreground">
-                Winner: {winnerName}
+            <CardContent className="p-0"> {/* Remove CardContent's default padding */}
+              <div className="flex flex-col">
+                <TeamItemInternal team={team1} isWinner={winnerIndex === 0} />
+                <div className="border-t border-border/50"></div>
+                <TeamItemInternal team={team2} isWinner={winnerIndex === 1} />
               </div>
-            )}
-             {!winnerName && team1?.name && team1.name.toLowerCase() !== "tbd" && team2?.name && team2.name.toLowerCase() !== "tbd" && (
-                <div className="text-xs py-1 px-3 text-center bg-muted text-muted-foreground">
-                    Match Pending
+              {winnerName && (
+                <div className="text-xs font-bold py-1 px-3 text-center bg-primary text-primary-foreground">
+                  Series Winner: {winnerName}
                 </div>
-            )}
-             {(!team1?.name || team1.name.toLowerCase() === "tbd" || !team2?.name || team2.name.toLowerCase() === "tbd") && !winnerName && (
-                 <div className="text-xs py-1 px-3 text-center bg-muted text-muted-foreground">
-                    Awaiting Teams
-                </div>
-            )}
+              )}
+              {!winnerName && team1?.name && team1.name.toLowerCase() !== "tbd" && team2?.name && team2.name.toLowerCase() !== "tbd" && (
+                  <div className="text-xs py-1 px-3 text-center bg-muted text-muted-foreground">
+                      Series Pending
+                  </div>
+              )}
+              {(!team1?.name || team1.name.toLowerCase() === "tbd" || !team2?.name || team2.name.toLowerCase() === "tbd") && !winnerName && (
+                  <div className="text-xs py-1 px-3 text-center bg-muted text-muted-foreground">
+                      Awaiting Teams
+                  </div>
+              )}
+            </CardContent>
           </Card>
           {seed.date && <div className="text-xs text-muted-foreground mt-1.5 text-center">{seed.date}</div>}
         </div>
@@ -416,8 +576,9 @@ function CustomSeedInternal({
 
 function TeamItemInternal({ team, isWinner }: { team: AdvancedTeam | undefined; isWinner?: boolean }) {
   if (!team || !team.name || team.name.toLowerCase() === "tbd") return (
-    <div className="py-2 px-3 flex justify-between items-center bg-muted/50 text-muted-foreground min-h-[36px]">
+    <div className="py-2 px-3 flex justify-between items-center bg-card text-muted-foreground min-h-[36px]">
         <span className="text-sm italic">TBD</span>
+        <span className="text-sm font-mono text-muted-foreground">0</span>
     </div>
   );
 
@@ -432,6 +593,6 @@ function TeamItemInternal({ team, isWinner }: { team: AdvancedTeam | undefined; 
     </div>
   );
 }
-    
-
       
+
+    
