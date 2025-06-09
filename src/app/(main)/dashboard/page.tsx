@@ -13,10 +13,10 @@ import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-sta
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users, Target, TrendingUp as TrendingUpIcon, BarChart3, AlertCircle } from 'lucide-react'; // Added BarChart3, AlertCircle
+import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users, Target, TrendingUp as TrendingUpIcon, BarChart3, AlertCircle, Coins, DollarSign, Check, AlertTriangle as AlertTriangleIcon } from 'lucide-react'; 
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts'; // Added Legend
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, BarChart, Bar } from 'recharts';
 
 interface AvailableCenter {
   id: string;
@@ -62,6 +62,13 @@ export default function DashboardPage() {
   const [salesChartData, setSalesChartData] = useState<SalesChartPoint[]>([]);
   const [chargebackChartData, setChargebackChartData] = useState<ChargebackChartPoint[]>([]);
 
+  // Static data for new Chargeback Comparison chart
+  const chargebackComparisonData = [
+    { metric: 'Current Period', value: 0 },
+    { metric: 'Previous Period', value: 160.20 }, // Adjusted to be a more realistic percentage
+    { metric: 'Industry Avg', value: 5.0 },
+  ];
+
 
   const fixedDateRange = useMemo(() => {
     const toDate = new Date();
@@ -86,13 +93,13 @@ export default function DashboardPage() {
       generatedSalesData.push({
         date: formattedDate,
         displayDate: displayDate,
-        sales: Math.floor(Math.random() * (10000 - 3000 + 1) + 3000) 
+        sales: Math.floor(Math.random() * (100 - 30 + 1) + 30) // Adjusted for submission counts
       });
   
       generatedChargebackData.push({
         date: formattedDate,
         displayDate: displayDate,
-        rate: Math.floor(Math.random() * (250 - 80 + 1) + 80) 
+        rate: Math.floor(Math.random() * (15 - 2 + 1) + 2) // Adjusted for realistic chargeback %
       });
     }
     setSalesChartData(generatedSalesData);
@@ -310,8 +317,11 @@ export default function DashboardPage() {
 
   const customTooltipFormatter = (value: number, name: string, props: any) => {
     const originalDate = props.payload?.date;
-    const formattedLabel = originalDate ? formatDate(parseISO(originalDate), 'MMM d, yyyy') : name;
-    return [`${value}`, name === 'sales' ? 'Sales' : 'Rate'];
+    // For sales and chargeback, use a more descriptive name
+    let displayName = name;
+    if (name === 'sales') displayName = 'Submissions';
+    if (name === 'rate') displayName = 'Chargeback Rate (%)';
+    return [`${value}`, displayName];
   };
 
   const customTooltipLabelFormatter = (label: string, payload: any[]) => {
@@ -383,9 +393,9 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center text-lg">
               <TrendingUpIcon className="mr-2 h-5 w-5 text-primary" />
-              Sample Daily Sales (Last 31 days)
+              Sample Daily Submissions (Last 31 days)
             </CardTitle>
-            <CardDescription>Illustrative daily sales trend.</CardDescription>
+            <CardDescription>Illustrative daily submission volume trend.</CardDescription>
           </CardHeader>
           <CardContent className="p-4">
             {salesChartData.length > 0 ? (
@@ -403,7 +413,7 @@ export default function DashboardPage() {
                   />
                   <RechartsTooltip 
                     contentStyle={{ 
-                      backgroundColor: 'hsl(var(--background))', 
+                      backgroundColor: 'hsl(var(--popover))', 
                       borderColor: 'hsl(var(--border))',
                       borderRadius: 'var(--radius)',
                     }}
@@ -413,12 +423,12 @@ export default function DashboardPage() {
                     labelFormatter={customTooltipLabelFormatter}
                   />
                   <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
-                  <Line type="monotone" dataKey="sales" name="Sales" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="sales" name="Submissions" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin mr-2" /> Loading sample sales data...
+                <Loader2 className="h-8 w-8 animate-spin mr-2" /> Loading sample submissions data...
               </div>
             )}
           </CardContent>
@@ -430,7 +440,7 @@ export default function DashboardPage() {
                <AlertCircle className="mr-2 h-5 w-5 text-destructive" />
               Sample Daily Chargeback Rate (Last 31 days)
             </CardTitle>
-            <CardDescription>Illustrative daily chargeback rate trend.</CardDescription>
+            <CardDescription>Illustrative daily chargeback rate trend (%).</CardDescription>
           </CardHeader>
           <CardContent className="p-4">
              {chargebackChartData.length > 0 ? (
@@ -443,12 +453,13 @@ export default function DashboardPage() {
                     stroke="hsl(var(--border))"
                   />
                   <YAxis 
+                    tickFormatter={(value) => `${value}%`}
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                     stroke="hsl(var(--border))"
                   />
                    <RechartsTooltip 
                     contentStyle={{ 
-                      backgroundColor: 'hsl(var(--background))', 
+                      backgroundColor: 'hsl(var(--popover))', 
                       borderColor: 'hsl(var(--border))',
                       borderRadius: 'var(--radius)',
                     }}
@@ -458,7 +469,7 @@ export default function DashboardPage() {
                     labelFormatter={customTooltipLabelFormatter}
                   />
                   <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
-                  <Line type="monotone" dataKey="rate" name="Chargeback Rate" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="rate" name="Chargeback Rate (%)" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -466,6 +477,90 @@ export default function DashboardPage() {
                 <Loader2 className="h-8 w-8 animate-spin mr-2" /> Loading sample chargeback data...
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* New Static Sales & Chargeback Sections */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+        {/* Sales Performance */}
+        <Card className="bg-card text-card-foreground shadow-xl rounded-lg">
+          <CardContent className="p-6 space-y-4">
+            <h2 className="text-xl font-bold font-headline flex items-center"><DollarSign className="mr-2 h-6 w-6 text-green-500" /> Sales Performance</h2>
+            <ul className="text-sm space-y-1 text-muted-foreground">
+              <li>• Daily Sales: <strong className="text-foreground">$7,673.95</strong></li>
+              <li>• Sales Target: <strong className="text-foreground">$50,000 (example)</strong></li>
+              <li>• Achievement: <strong className="text-foreground">15.3%</strong></li>
+              <li>• Status: <AlertTriangleIcon className="inline h-4 w-4 mr-1 text-yellow-500" /> <span className="text-yellow-600 dark:text-yellow-400 font-medium">Below Target</span></li>
+            </ul>
+
+            <div className="text-center mt-6">
+              <h3 className="text-lg font-semibold text-foreground">Daily Sales Progress</h3>
+              <div className="relative w-48 h-24 mx-auto mt-2">
+                <div className="absolute inset-0 bg-gradient-to-tr from-primary to-secondary rounded-full border-4 border-border opacity-70"></div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <div className="text-2xl font-bold text-primary-foreground">7.7k</div>
+                    <div className="text-xs text-red-500 font-semibold">(▼ -42.3k vs Target)</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chargeback Analysis */}
+        <Card className="bg-card text-card-foreground shadow-xl rounded-lg">
+          <CardContent className="p-6 space-y-4">
+            <h2 className="text-xl font-bold font-headline flex items-center"><ClipboardList className="mr-2 h-6 w-6 text-red-500" /> Chargeback Analysis</h2>
+            <ul className="text-sm space-y-1 text-muted-foreground">
+              <li>• Selected Period: <strong className="text-foreground">0.0%</strong></li>
+              <li>• Previous Period: <strong className="text-foreground">1.2%</strong> {/* Adjusted for realism */} </li>
+              <li>• Industry Average: <strong className="text-foreground">5.0% (example)</strong></li>
+              <li>• Performance: <Check className="inline h-4 w-4 mr-1 text-green-500" /> <span className="text-green-600 dark:text-green-400 font-medium">Below Average</span></li>
+            </ul>
+
+            <div>
+              <h3 className="text-lg font-semibold mt-4 text-foreground">Chargeback Comparison</h3>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={chargebackComparisonData} margin={{ top: 20, right: 0, left: -25, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="metric" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <YAxis fontSize={10} tickFormatter={(value) => `${value}%`} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <RechartsTooltip 
+                    formatter={(value: any, name: any, props: any) => [`${props.payload.value}%`, props.payload.metric]}
+                    cursor={{fill: 'hsl(var(--accent)/0.1)'}}
+                    contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))'}}
+                   />
+                  <Bar dataKey="value" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Performance Summary Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
+        <Card className="bg-primary/80 text-primary-foreground shadow-md rounded-lg hover:shadow-lg transition-shadow">
+          <CardContent className="p-4">
+            <h3 className="text-md font-bold mb-2 flex items-center"><TrendingUpIcon className="mr-2 h-5 w-5"/> Sales Performance</h3>
+            <p className="text-sm">Daily Sales: $7,673.95</p>
+            <p className="text-sm">Trend: <AlertTriangleIcon className="inline h-4 w-4 mr-1 text-yellow-300"/> Needs Focus</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-green-600/90 text-white shadow-md rounded-lg hover:shadow-lg transition-shadow">
+          <CardContent className="p-4">
+            <h3 className="text-md font-bold mb-2 flex items-center"><Check className="mr-2 h-5 w-5"/> Chargeback Analysis</h3>
+            <p className="text-sm">Selected Period: 0.0%</p>
+            <p className="text-sm">Previous Period: 1.2%</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-teal-600/90 text-white shadow-md rounded-lg hover:shadow-lg transition-shadow">
+          <CardContent className="p-4">
+            <h3 className="text-md font-bold mb-2 flex items-center"><Award className="mr-2 h-5 w-5"/> Points Status</h3>
+            <p className="text-sm">Total: 10 Points</p>
+            <p className="text-sm">Data Source: Google Sheets</p>
           </CardContent>
         </Card>
       </div>
@@ -489,3 +584,6 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+
+    
