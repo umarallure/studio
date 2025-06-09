@@ -65,7 +65,7 @@ export default function DashboardPage() {
   // Static data for new Chargeback Comparison chart
   const chargebackComparisonData = [
     { metric: 'Current Period', value: 0 },
-    { metric: 'Previous Period', value: 160.20 }, // Adjusted to be a more realistic percentage
+    { metric: 'Previous Period', value: 1.2 }, // Adjusted to be a more realistic percentage
     { metric: 'Industry Avg', value: 5.0 },
   ];
 
@@ -423,7 +423,7 @@ export default function DashboardPage() {
                     labelFormatter={customTooltipLabelFormatter}
                   />
                   <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
-                  <Line type="monotone" dataKey="sales" name="Submissions" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="sales" name="Submissions" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--chart-1))" }} activeDot={{ r: 5, fill: "hsl(var(--chart-1))" }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -469,7 +469,7 @@ export default function DashboardPage() {
                     labelFormatter={customTooltipLabelFormatter}
                   />
                   <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
-                  <Line type="monotone" dataKey="rate" name="Chargeback Rate (%)" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="rate" name="Chargeback Rate (%)" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--destructive))" }} activeDot={{ r: 5, fill: "hsl(var(--destructive))" }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -486,22 +486,22 @@ export default function DashboardPage() {
         {/* Sales Performance */}
         <Card className="bg-card text-card-foreground shadow-xl rounded-lg">
           <CardContent className="p-6 space-y-4">
-            <h2 className="text-xl font-bold font-headline flex items-center"><DollarSign className="mr-2 h-6 w-6 text-green-500" /> Sales Performance</h2>
+            <h2 className="text-xl font-bold font-headline flex items-center text-foreground"><DollarSign className="mr-2 h-6 w-6 text-green-500" /> Sales Performance</h2>
             <ul className="text-sm space-y-1 text-muted-foreground">
               <li>• Daily Sales: <strong className="text-foreground">$7,673.95</strong></li>
               <li>• Sales Target: <strong className="text-foreground">$50,000 (example)</strong></li>
               <li>• Achievement: <strong className="text-foreground">15.3%</strong></li>
-              <li>• Status: <AlertTriangleIcon className="inline h-4 w-4 mr-1 text-yellow-500" /> <span className="text-yellow-600 dark:text-yellow-400 font-medium">Below Target</span></li>
+              <li>• Status: <AlertTriangleIcon className="inline h-4 w-4 mr-1 text-yellow-500" /> <span className="text-yellow-500 font-medium">Below Target</span></li>
             </ul>
 
             <div className="text-center mt-6">
               <h3 className="text-lg font-semibold text-foreground">Daily Sales Progress</h3>
-              <div className="relative w-48 h-24 mx-auto mt-2">
-                <div className="absolute inset-0 bg-gradient-to-tr from-primary to-secondary rounded-full border-4 border-border opacity-70"></div>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="text-2xl font-bold text-primary-foreground">7.7k</div>
-                    <div className="text-xs text-red-500 font-semibold">(▼ -42.3k vs Target)</div>
+              <div className="relative w-52 h-28 mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-black rounded-full border-4 border-gray-700"></div>
+                <div className="absolute inset-0 flex items-center justify-center text-xl font-bold text-white">
+                  7.7k
                 </div>
+                <div className="absolute bottom-0 w-full text-center text-sm text-red-500">▼ -42.3k</div>
               </div>
             </div>
           </CardContent>
@@ -510,12 +510,12 @@ export default function DashboardPage() {
         {/* Chargeback Analysis */}
         <Card className="bg-card text-card-foreground shadow-xl rounded-lg">
           <CardContent className="p-6 space-y-4">
-            <h2 className="text-xl font-bold font-headline flex items-center"><ClipboardList className="mr-2 h-6 w-6 text-red-500" /> Chargeback Analysis</h2>
+            <h2 className="text-xl font-bold font-headline flex items-center text-foreground"><ClipboardList className="mr-2 h-6 w-6 text-red-500" /> Chargeback Analysis</h2>
             <ul className="text-sm space-y-1 text-muted-foreground">
               <li>• Selected Period: <strong className="text-foreground">0.0%</strong></li>
-              <li>• Previous Period: <strong className="text-foreground">1.2%</strong> {/* Adjusted for realism */} </li>
+              <li>• Previous Period: <strong className="text-foreground">1.2%</strong></li>
               <li>• Industry Average: <strong className="text-foreground">5.0% (example)</strong></li>
-              <li>• Performance: <Check className="inline h-4 w-4 mr-1 text-green-500" /> <span className="text-green-600 dark:text-green-400 font-medium">Below Average</span></li>
+              <li>• Performance: <Check className="inline h-4 w-4 mr-1 text-green-500" /> <span className="text-green-500 font-medium">Below Average</span></li>
             </ul>
 
             <div>
@@ -528,7 +528,8 @@ export default function DashboardPage() {
                   <RechartsTooltip 
                     formatter={(value: any, name: any, props: any) => [`${props.payload.value}%`, props.payload.metric]}
                     cursor={{fill: 'hsl(var(--accent)/0.1)'}}
-                    contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))'}}
+                    contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--popover-foreground))' }}
+                    labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
                    />
                   <Bar dataKey="value" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} barSize={40} />
                 </BarChart>
@@ -540,7 +541,7 @@ export default function DashboardPage() {
 
       {/* Performance Summary Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
-        <Card className="bg-primary/80 text-primary-foreground shadow-md rounded-lg hover:shadow-lg transition-shadow">
+        <Card className="bg-blue-900 text-white shadow-md rounded-xl hover:shadow-lg transition-shadow">
           <CardContent className="p-4">
             <h3 className="text-md font-bold mb-2 flex items-center"><TrendingUpIcon className="mr-2 h-5 w-5"/> Sales Performance</h3>
             <p className="text-sm">Daily Sales: $7,673.95</p>
@@ -548,7 +549,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-green-600/90 text-white shadow-md rounded-lg hover:shadow-lg transition-shadow">
+        <Card className="bg-lime-700 text-white shadow-md rounded-xl hover:shadow-lg transition-shadow">
           <CardContent className="p-4">
             <h3 className="text-md font-bold mb-2 flex items-center"><Check className="mr-2 h-5 w-5"/> Chargeback Analysis</h3>
             <p className="text-sm">Selected Period: 0.0%</p>
@@ -556,7 +557,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-teal-600/90 text-white shadow-md rounded-lg hover:shadow-lg transition-shadow">
+        <Card className="bg-emerald-700 text-white shadow-md rounded-xl hover:shadow-lg transition-shadow">
           <CardContent className="p-4">
             <h3 className="text-md font-bold mb-2 flex items-center"><Award className="mr-2 h-5 w-5"/> Points Status</h3>
             <p className="text-sm">Total: 10 Points</p>
