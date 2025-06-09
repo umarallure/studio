@@ -23,29 +23,29 @@ interface SeriesDetailPopupProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   matchupId: string | null;
-  roundId: string | null;
+  roundId: string | null; // This is the prop coming in, e.g., "1", "2"
   team1Name: string | null;
   team2Name: string | null;
   tournamentId: string | null;
-  tournamentStartDate: Date | null; // For calculating actual match week
+  tournamentStartDate: Date | null;
 }
 
 interface DailyStatDisplayData {
-  date: string; // Formatted for display, e.g., "MMM d" or "Mon, MMM d"
-  originalDate: string; // YYYY-MM-DD
+  date: string; 
+  originalDate: string; 
   team1Name: string;
   team2Name: string;
   team1Score: number;
   team2Score: number;
   winner: string | null;
-  status: string; // "Completed", "Scheduled", "Not Found", "Data Missing"
+  status: string; 
 }
 
 const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
   isOpen,
   onOpenChange,
   matchupId,
-  roundId,
+  roundId, // Prop representing the round number as a string
   team1Name,
   team2Name,
   tournamentId,
@@ -68,9 +68,10 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
       return;
     }
 
+    // Check if essential props are available before fetching
     if (!matchupId || !roundId || !tournamentId || !team1Name || !team2Name || !tournamentStartDate || !isValid(tournamentStartDate)) {
       setError("Required match details are missing or invalid. Cannot fetch daily stats.");
-      setDailyStats([]); // Clear any previous stats
+      setDailyStats([]);
       setIsLoading(false);
       return;
     }
@@ -78,16 +79,20 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
     const fetchSeriesDetails = async () => {
       setIsLoading(true);
       setError(null);
-      setDailyStats([]); // Clear previous stats on new fetch
+      setDailyStats([]);
 
       try {
         // 1. Get the 5 scheduled dates for the match
-        const scheduledDatesInput: GetMatchScheduledDatesInput = { tournamentId, roundId, matchId: matchupId };
-        const fetchedScheduledDates = await getMatchScheduledDates(scheduledDatesInput);
+        // Ensure 'roundNum' is passed as expected by the flow, using the 'roundId' prop value
+        const scheduledDatesInput: GetMatchScheduledDatesInput = { 
+          tournamentId, 
+          roundNum: roundId, // Correctly map roundId prop to roundNum for the flow
+          matchId: matchupId 
+        };
+        console.log("[SeriesDetailPopup] Calling getMatchScheduledDates with input:", JSON.stringify(scheduledDatesInput));
+        let fetchedScheduledDates = await getMatchScheduledDates(scheduledDatesInput);
 
         if (!fetchedScheduledDates || fetchedScheduledDates.length === 0) {
-          // This case can happen if the dailyResults subcollection hasn't been created yet
-          // We can attempt to derive the 5 working days based on tournamentStartDate and roundId
           console.warn(`[SeriesDetailPopup] No scheduled dates found via Genkit for R${roundId} M${matchupId}. Deriving dates.`);
           const roundNumInt = parseInt(roundId, 10);
           if (isNaN(roundNumInt) || !tournamentStartDate || !isValid(tournamentStartDate)) {
@@ -98,27 +103,27 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
           let workingDaysFound = 0;
           let calendarDayOffset = 0;
           const derivedDates: string[] = [];
-          while(workingDaysFound < 5 && calendarDayOffset < 20) { // Safety break
+          while(workingDaysFound < 5 && calendarDayOffset < 20) { 
             const currentDate = addDays(matchWeekStartDate, calendarDayOffset);
-            if (getDay(currentDate) >= 1 && getDay(currentDate) <= 5) { // Mon-Fri
+            if (getDay(currentDate) >= 1 && getDay(currentDate) <= 5) { 
               derivedDates.push(format(currentDate, 'yyyy-MM-dd'));
               workingDaysFound++;
             }
             calendarDayOffset++;
           }
-          fetchedScheduledDates.push(...derivedDates.slice(0,5)); // Use up to 5 derived dates
+          fetchedScheduledDates = derivedDates.slice(0,5); 
           if(fetchedScheduledDates.length === 0) {
             throw new Error("Could not determine scheduled dates for this match.");
           }
+           console.log("[SeriesDetailPopup] Derived scheduled dates:", fetchedScheduledDates);
         }
 
         const sortedScheduledDates = fetchedScheduledDates.sort((a, b) => a.localeCompare(b));
 
-        // 2. Fetch daily result for each scheduled date
         const dailyResultsPromises = sortedScheduledDates.map(dateStr => {
           const dailyResultInput: GetMatchDailyResultInput = {
             tournamentId,
-            roundId,
+            roundNum: roundId, // Pass roundId prop as roundNum
             matchId: matchupId,
             targetDate: dateStr,
           };
@@ -163,7 +168,10 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
 
     fetchSeriesDetails();
 
+  // Ensure all dependencies that could trigger re-fetch are listed.
+  // Key dependencies are isOpen and the props identifying the match.
   }, [isOpen, matchupId, roundId, team1Name, team2Name, tournamentId, tournamentStartDate, toast, resetState]);
+
 
   const maxSubmissionsPerDay = dailyStats.reduce((max, day) => {
     const dayMax = Math.max(day.team1Score, day.team2Score);
@@ -178,11 +186,11 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
             Series Details: {team1Name || "Team 1"} vs {team2Name || "Team 2"}
           </DialogTitle>
           <DialogDescription>
-            Daily submission counts for this match-up.
+            Daily submission counts for this match-up (Round {roundId}).
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-grow p-4 -mx-0"> {/* Adjusted padding */}
+        <ScrollArea className="flex-grow p-4 -mx-0">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-10 space-y-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -259,6 +267,3 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
 };
 
 export default SeriesDetailPopup;
-
-
-    
