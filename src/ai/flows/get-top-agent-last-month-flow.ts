@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview A Genkit flow to find the top performing agent based on submissions last month.
+ * @fileOverview A Genkit flow to find the top performing agent based on submissions in the last 30 days.
  *
  * - getTopAgentLastMonth - A function that calculates the top agent.
  * - TopAgentLastMonthInput - The input type for the function.
@@ -12,7 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, type QueryConstraint } from 'firebase/firestore';
-import { format as formatDate, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { format as formatDate, subDays } from 'date-fns';
 import type { SheetRow } from '@/lib/types';
 import { mapDocToSheetRow } from '@/lib/tournament-config'; // Assuming this can map SheetRow
 
@@ -23,7 +23,7 @@ export type TopAgentLastMonthInput = z.infer<typeof TopAgentLastMonthInputSchema
 
 const TopAgentLastMonthOutputSchema = z.object({
   agentName: z.string().nullable().describe("The name of the top performing agent. Null if no agent or no submissions."),
-  submissionCount: z.number().describe("The total number of 'Submitted' entries by the top agent last month."),
+  submissionCount: z.number().describe("The total number of 'Submitted' entries by the top agent in the last 30 days."),
 });
 export type TopAgentLastMonthOutput = z.infer<typeof TopAgentLastMonthOutputSchema>;
 
@@ -41,17 +41,13 @@ const getTopAgentLastMonthFlow = ai.defineFlow(
     outputSchema: TopAgentLastMonthOutputSchema,
   },
   async (input: TopAgentLastMonthInput): Promise<TopAgentLastMonthOutput> => {
-    const { leadVenderFilter } = input;
+    const { leadVenderFilter } = input;    const endDate = new Date();
+    const startDate = subDays(endDate, 30);
+    
+    const startDateStr = formatDate(startDate, 'yyyy-MM-dd');
+    const endDateStr = formatDate(endDate, 'yyyy-MM-dd');
 
-    const today = new Date();
-    const lastMonthDate = subMonths(today, 1);
-    const startDateOfLastMonth = startOfMonth(lastMonthDate);
-    const endDateOfLastMonth = endOfMonth(lastMonthDate);
-
-    const startDateStr = formatDate(startDateOfLastMonth, 'yyyy-MM-dd');
-    const endDateStr = formatDate(endDateOfLastMonth, 'yyyy-MM-dd');
-
-    console.log(`[Genkit Flow Internal - TopAgent] Processing for last month: ${startDateStr} to ${endDateStr}, filter: ${leadVenderFilter || 'None'}`);
+    console.log(`[Genkit Flow Internal - TopAgent] Processing for last 30 days: ${startDateStr} to ${endDateStr}, filter: ${leadVenderFilter || 'None'}`);
 
     try {
       const sheetRowsCollectionRef = collection(db, "Sheet1Rows");
@@ -78,7 +74,7 @@ const getTopAgentLastMonthFlow = ai.defineFlow(
       });
 
       if (Object.keys(agentSubmissions).length === 0) {
-        console.log('[Genkit Flow Internal - TopAgent] No submitted entries found for last month with the given criteria.');
+        console.log('[Genkit Flow Internal - TopAgent] No submitted entries found in the last 30 days with the given criteria.');
         return { agentName: null, submissionCount: 0 };
       }
 

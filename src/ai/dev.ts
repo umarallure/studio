@@ -8,3 +8,4 @@ import './flows/get-match-daily-result-flow';
 import './flows/get-match-scheduled-dates-flow';
 import './flows/get-daily-negative-status-rate-in-range-flow';
 import './flows/get-team-submissions-last-30-days-flow';
+import './flows/get-chargeback-comparison-flow';

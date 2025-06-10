@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { CenterDashboardData, TopAgentMetric, ChartSegment, CenterMetric } from '@/lib/types';
@@ -10,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getDailySubmissions } from '@/ai/flows/get-daily-submissions-flow';
 import { getTopAgentLastMonth } from '@/ai/flows/get-top-agent-last-month-flow';
 import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-status-for-chart-flow';
+import { getTeamChargebackRate } from '@/ai/flows/get-team-chargeback-rate-flow';
+import { getDailySubmissionsInRange } from '@/ai/flows/get-daily-submissions-in-range-flow';
+import { getDailyChargebackRate } from '@/ai/flows/get-daily-chargeback-rate-flow';
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +19,9 @@ import { Loader2, Lock, Award, CalendarDays, Info, ClipboardList, Users, Target,
 import MetricCard from '@/components/dashboard/MetricCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, BarChart, Bar } from 'recharts';
+import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+import { GaugeChart } from '@/components/dashboard/GaugeChart';
 
 interface AvailableCenter {
   id: string;
@@ -61,6 +66,31 @@ export default function DashboardPage() {
   // State for sample chart data
   const [salesChartData, setSalesChartData] = useState<SalesChartPoint[]>([]);
   const [chargebackChartData, setChargebackChartData] = useState<ChargebackChartPoint[]>([]);
+  const [submissionsChartData, setSubmissionsChartData] = useState<{ 
+    date: string; 
+    displayDate: string; 
+    submissions: number; 
+  }[]>([]);
+  const [chargebackRateData, setChargebackRateData] = useState<{
+    date: string;
+    displayDate: string;
+    rate: number;
+    totalEntries: number;
+    chargebackEntries: number;
+  }[]>([]);
+
+  // State for flow through rate
+  const [flowThroughStats, setFlowThroughStats] = useState<{
+    totalEntries: number;
+    targetEntries: number;
+    achievement: number;
+    trend: 'up' | 'down' | 'neutral';
+  }>({
+    totalEntries: 0,
+    targetEntries: 100, // Example target, adjust as needed
+    achievement: 0,
+    trend: 'neutral'
+  });
 
   // Static data for new Chargeback Comparison chart
   const chargebackComparisonData = [
@@ -79,34 +109,6 @@ export default function DashboardPage() {
     };
   }, []); 
 
-  // Effect to generate sample chart data on client-side
-  useEffect(() => {
-    const today = new Date();
-    const generatedSalesData: SalesChartPoint[] = [];
-    const generatedChargebackData: ChargebackChartPoint[] = [];
-  
-    for (let i = 30; i >= 0; i--) { // 31 days, from 30 days ago to today
-      const date = subDays(today, i);
-      const formattedDate = formatDate(date, 'yyyy-MM-dd');
-      const displayDate = formatDate(date, 'MMM d');
-  
-      generatedSalesData.push({
-        date: formattedDate,
-        displayDate: displayDate,
-        sales: Math.floor(Math.random() * (100 - 30 + 1) + 30) // Adjusted for submission counts
-      });
-  
-      generatedChargebackData.push({
-        date: formattedDate,
-        displayDate: displayDate,
-        rate: Math.floor(Math.random() * (15 - 2 + 1) + 2) // Adjusted for realistic chargeback %
-      });
-    }
-    setSalesChartData(generatedSalesData);
-    setChargebackChartData(generatedChargebackData);
-  }, []);
-
-
   const fetchAndDisplayMetrics = useCallback(async (
     filterNameForCards: string | null,
     baseDataForUI: CenterDashboardData,
@@ -115,23 +117,67 @@ export default function DashboardPage() {
     console.log('[DashboardPage] fetchAndDisplayMetrics called. Cards Filter:', filterNameForCards, 'UI Name:', uiCenterName);
     setIsLoadingMetrics(true);
     
-    const todayStr = formatDate(fixedDateRange.to, 'yyyy-MM-dd');
-    const yesterdayStr = formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd');
-
     try {
+      // Get daily submissions and chargeback data
+      const [dailySubmissionsResult, dailyChargebackResult] = await Promise.all([
+        getDailySubmissionsInRange({ 
+          leadVenderFilter: filterNameForCards,
+          daysToLookBack: 31
+        }),
+        getDailyChargebackRate({
+          leadVenderFilter: filterNameForCards,
+          daysToLookBack: 31
+        })
+      ]);
+
+      // Process daily submissions data for chart
+      if (dailySubmissionsResult?.dailyStats && dailySubmissionsResult.dailyStats.length > 0) {
+        const processedChartData = dailySubmissionsResult.dailyStats
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .map(stat => ({
+            date: stat.date,
+            displayDate: formatDate(parseISO(stat.date), 'MMM d'),
+            submissions: stat.count
+          }));
+        
+        console.log('[DashboardPage] Processed chart data:', processedChartData);
+        setSubmissionsChartData(processedChartData);
+      } else {
+        console.warn('[DashboardPage] No daily submissions data available');
+        setSubmissionsChartData([]);
+      }
+
+      // Process chargeback rate data
+      if (dailyChargebackResult?.dailyStats) {
+        const processedChargebackData = dailyChargebackResult.dailyStats
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .map(stat => ({
+            date: stat.date,
+            displayDate: formatDate(parseISO(stat.date), 'MMM d'),
+            rate: stat.rate,
+            totalEntries: stat.totalEntries,
+            chargebackEntries: stat.chargebackEntries
+          }));
+        
+        console.log('[DashboardPage] Processed chargeback data:', processedChargebackData);
+        setChargebackRateData(processedChargebackData);
+      }
+
       const [
         submissionsForTodayResult,
         submissionsForYesterdayResult,
         topAgentResult,
         entryStatsResult,
+        chargebackResult,
       ] = await Promise.all([
-        getDailySubmissions({ targetDate: todayStr, leadVenderFilter: filterNameForCards }),
-        getDailySubmissions({ targetDate: yesterdayStr, leadVenderFilter: filterNameForCards }),
+        getDailySubmissions({ targetDate: formatDate(fixedDateRange.to, 'yyyy-MM-dd'), leadVenderFilter: filterNameForCards }),
+        getDailySubmissions({ targetDate: formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd'), leadVenderFilter: filterNameForCards }),
         getTopAgentLastMonth({ leadVenderFilter: filterNameForCards }),
         getEntryStatsByStatusForChart({ 
             leadVenderFilter: filterNameForCards, 
             daysToCover: FIXED_DATE_RANGE_DAYS 
         }),
+        getTeamChargebackRate({ leadVenderFilter: filterNameForCards }),
       ]);
 
       setDailySubmissionsForCard({
@@ -156,6 +202,18 @@ export default function DashboardPage() {
       }
       setTotalSubmittedLast30DaysValue(submittedCountLast30Days);
       
+      // Calculate flow through stats
+      const totalEntries = entryStatsResult.reduce((sum, stat) => sum + stat.value, 0);
+      const targetEntries = 100; // Adjust target as needed
+      const achievement = (totalEntries / targetEntries) * 100;
+
+      setFlowThroughStats({
+        totalEntries,
+        targetEntries,
+        achievement: parseFloat(achievement.toFixed(1)),
+        trend: achievement >= 80 ? 'up' : achievement >= 50 ? 'neutral' : 'down'
+      });
+
       const fixedRangeTextShort = `Last ${FIXED_DATE_RANGE_DAYS}D`;
 
       setDisplayedDashboardData(prev => ({
@@ -173,7 +231,12 @@ export default function DashboardPage() {
         },
         chargebackPercentage: {
             ...baseDataForUI.chargebackPercentage,
-            title: "Placeholder Metric 1"
+            title: "Chargeback Rate (30 Days)",
+            value: chargebackResult.chargebackRate.toFixed(2),
+            unit: "%",
+            trend: 'neutral',
+            description: `${chargebackResult.submittedEntries} submitted out of ${chargebackResult.totalEntries} total entries`,
+            icon: AlertCircle,
         }, 
         totalSubmittedLast30Days: {
             id: 'totalSubmitted30d',
@@ -190,6 +253,8 @@ export default function DashboardPage() {
 
     } catch (error) {
       console.error("[DashboardPage] Failed to fetch dynamic dashboard metrics:", error);
+      setSubmissionsChartData([]);
+      setChargebackRateData([]);
       toast({
         title: "Error Fetching Metrics",
         description: "Could not load all dynamic data. Displaying last known or default values.",
@@ -202,7 +267,15 @@ export default function DashboardPage() {
         ...prev,
         centerName: uiCenterName,
         dailySales: { ...baseDataForUI.dailySales, value: 0, previousValue: 0, description: "Error loading live data." },
-        chargebackPercentage: baseDataForUI.chargebackPercentage, 
+        chargebackPercentage: {
+          ...baseDataForUI.chargebackPercentage,
+          title: "Chargeback Rate (30 Days)",
+          value: "0.00",
+          unit: "%",
+          trend: 'neutral',
+          description: "Error loading chargeback data",
+          icon: AlertCircle,
+        },
         totalSubmittedLast30Days: { 
           ...(baseDataForUI.totalSubmittedLast30Days || defaultCenterData.totalSubmittedLast30Days!), 
           value: 0, 
@@ -387,20 +460,24 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* Sample Charts Section */}
+      {/* Submissions Chart Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
         <Card className="bg-card shadow-lg rounded-lg">
           <CardHeader>
             <CardTitle className="flex items-center text-lg">
               <TrendingUpIcon className="mr-2 h-5 w-5 text-primary" />
-              Sample Daily Submissions (Last 31 days)
+              Daily Submissions (Last 31 days)
             </CardTitle>
-            <CardDescription>Illustrative daily submission volume trend.</CardDescription>
+            <CardDescription>
+              {user?.teamNameForFilter ? 
+                `Daily submission volume trend for ${user.teamNameForFilter}` : 
+                'Daily submission volume trend for all teams'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-4">
-            {salesChartData.length > 0 ? (
+            {submissionsChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={salesChartData}>
+                <LineChart data={submissionsChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis 
                     dataKey="displayDate" 
@@ -419,16 +496,33 @@ export default function DashboardPage() {
                     }}
                     labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    formatter={customTooltipFormatter}
-                    labelFormatter={customTooltipLabelFormatter}
+                    formatter={(value: number) => [`${value} submissions`, 'Daily Submissions']}
+                    labelFormatter={(label) => `Date: ${label}`}
                   />
-                  <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
-                  <Line type="monotone" dataKey="sales" name="Submissions" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--chart-1))" }} activeDot={{ r: 5, fill: "hsl(var(--chart-1))" }} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="submissions" 
+                    name="Daily Submissions" 
+                    stroke="hsl(var(--chart-1))" 
+                    strokeWidth={2} 
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin mr-2" /> Loading sample submissions data...
+                {isLoadingMetrics ? (
+                  <>
+                    <Loader2 className="h-8 w-8 animate-spin mr-2" /> 
+                    Loading submissions data...
+                  </>
+                ) : (
+                  <div className="text-center">
+                    <AlertTriangleIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    <p>No submission data available for this period</p>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -438,14 +532,18 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center text-lg">
                <AlertCircle className="mr-2 h-5 w-5 text-destructive" />
-              Sample Daily Chargeback Rate (Last 31 days)
+              Daily Chargeback Rate (Last 31 days)
             </CardTitle>
-            <CardDescription>Illustrative daily chargeback rate trend (%).</CardDescription>
+            <CardDescription>
+              {user?.teamNameForFilter ? 
+                `Daily chargeback rate trend for ${user.teamNameForFilter}` : 
+                'Daily chargeback rate trend for all teams'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-4">
-             {chargebackChartData.length > 0 ? (
+             {chargebackRateData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={chargebackChartData}>
+                <LineChart data={chargebackRateData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis 
                     dataKey="displayDate" 
@@ -465,16 +563,28 @@ export default function DashboardPage() {
                     }}
                     labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    formatter={customTooltipFormatter}
-                    labelFormatter={customTooltipLabelFormatter}
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value}% (${props.payload.chargebackEntries}/${props.payload.totalEntries})`,
+                      'Chargeback Rate'
+                    ]}
+                    labelFormatter={(label) => `Date: ${label}`}
                   />
-                  <Legend wrapperStyle={{fontSize: '12px', paddingTop: '10px'}} />
-                  <Line type="monotone" dataKey="rate" name="Chargeback Rate (%)" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--destructive))" }} activeDot={{ r: 5, fill: "hsl(var(--destructive))" }} />
+                  <Line type="monotone" dataKey="rate" name="Chargeback Rate" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin mr-2" /> Loading sample chargeback data...
+                {isLoadingMetrics ? (
+                  <>
+                    <Loader2 className="h-8 w-8 animate-spin mr-2" /> 
+                    Loading chargeback data...
+                  </>
+                ) : (
+                  <div className="text-center">
+                    <AlertTriangleIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    <p>No chargeback data available for this period</p>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -486,22 +596,43 @@ export default function DashboardPage() {
         {/* Sales Performance */}
         <Card className="bg-card text-card-foreground shadow-xl rounded-lg">
           <CardContent className="p-6 space-y-4">
-            <h2 className="text-xl font-bold font-headline flex items-center text-foreground"><DollarSign className="mr-2 h-6 w-6 text-green-500" /> Sales Performance</h2>
+            <h2 className="text-xl font-bold font-headline flex items-center text-foreground">
+              <DollarSign className="mr-2 h-6 w-6 text-green-500" /> Flow Through Rate
+            </h2>
             <ul className="text-sm space-y-1 text-muted-foreground">
-              <li>• Daily Sales: <strong className="text-foreground">$7,673.95</strong></li>
-              <li>• Sales Target: <strong className="text-foreground">$50,000 (example)</strong></li>
-              <li>• Achievement: <strong className="text-foreground">15.3%</strong></li>
-              <li>• Status: <AlertTriangleIcon className="inline h-4 w-4 mr-1 text-yellow-500" /> <span className="text-yellow-500 font-medium">Below Target</span></li>
+              <li>• Total Entries: <strong className="text-foreground">{flowThroughStats.totalEntries.toLocaleString()}</strong></li>
+              <li>• Target Entries: <strong className="text-foreground">{flowThroughStats.targetEntries.toLocaleString()}</strong></li>
+              <li>• Achievement: <strong className="text-foreground">{flowThroughStats.achievement}%</strong></li>
+              <li>• Status: {flowThroughStats.trend === 'up' ? (
+                <Check className="inline h-4 w-4 mr-1 text-green-500" />
+              ) : flowThroughStats.trend === 'down' ? (
+                <AlertTriangleIcon className="inline h-4 w-4 mr-1 text-destructive" />
+              ) : (
+                <AlertCircle className="inline h-4 w-4 mr-1 text-yellow-500" />
+              )}
+                <span className={`font-medium ${
+                  flowThroughStats.trend === 'up' ? 'text-green-500' :
+                  flowThroughStats.trend === 'down' ? 'text-destructive' :
+                  'text-yellow-500'
+                }`}>
+                  {flowThroughStats.trend === 'up' ? 'On Track' :
+                   flowThroughStats.trend === 'down' ? 'Below Target' :
+                   'Needs Attention'}
+                </span>
+              </li>
             </ul>
 
             <div className="text-center mt-6">
-              <h3 className="text-lg font-semibold text-foreground">Daily Sales Progress</h3>
-              <div className="relative w-52 h-28 mx-auto">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-black rounded-full border-4 border-gray-700"></div>
-                <div className="absolute inset-0 flex items-center justify-center text-xl font-bold text-white">
-                  7.7k
+              <h3 className="text-lg font-semibold text-foreground mb-4">Flow Through Progress</h3>
+              <div className="flex justify-center items-center">
+                <div className="w-[180px]"> {/* Fixed width container */}
+                  <GaugeChart 
+                    value={flowThroughStats.totalEntries} 
+                    maxValue={flowThroughStats.targetEntries}
+                    deficit={flowThroughStats.targetEntries - flowThroughStats.totalEntries}
+                    size={180}
+                  />
                 </div>
-                <div className="absolute bottom-0 w-full text-center text-sm text-red-500">▼ -42.3k</div>
               </div>
             </div>
           </CardContent>
@@ -587,4 +718,4 @@ export default function DashboardPage() {
 }
 
 
-    
+
