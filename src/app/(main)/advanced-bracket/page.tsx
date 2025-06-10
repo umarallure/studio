@@ -857,7 +857,7 @@ export default function AdvancedTournamentBracket() {
       {selectedMatchupForPopup && activeTournament && activeTournament.startDate && (
         <SeriesDetailPopup
           isOpen={isSeriesDetailPopupOpen}
-          onOpenChange={setIsSeriesDetailPopup}
+          onOpenChange={setIsSeriesDetailPopupOpen}
           matchupId={selectedMatchupForPopup.matchupId}
           roundId={selectedMatchupForPopup.roundId}
           team1Name={selectedMatchupForPopup.team1Name}
