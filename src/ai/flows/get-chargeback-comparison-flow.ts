@@ -50,18 +50,14 @@ const getChargebackComparisonFlow = ai.defineFlow(
   },
   async (input: GetChargebackComparisonInput): Promise<GetChargebackComparisonOutput> => {
     const { leadVenderFilter, currentPeriodDays = 30 } = input;
-    
-    const today = new Date();
-    const currentPeriodEnd = endOfDay(today);
-    const currentPeriodStart = startOfDay(subDays(today, currentPeriodDays - 1));
-    const previousPeriodEnd = subDays(currentPeriodStart, 1);
-    const previousPeriodStart = startOfDay(subDays(previousPeriodEnd, currentPeriodDays - 1));
 
     async function getStatsForPeriod(startDate: Date, endDate: Date) {
       try {
         const startDateStr = formatDate(startDate, 'yyyy-MM-dd');
         const endDateStr = formatDate(endDate, 'yyyy-MM-dd');
         
+        console.log(`[getChargebackComparison] Analyzing period ${startDateStr} to ${endDateStr}`);
+
         const sheetRowsCollectionRef = collection(db, "Sheet1Rows");
         const queryConstraints: QueryConstraint[] = [
           where("Date", ">=", startDateStr),
@@ -76,16 +72,26 @@ const getChargebackComparisonFlow = ai.defineFlow(
         const querySnapshot = await getDocs(q);
         
         let totalEntries = 0;
-        let chargebackEntries = 0;
+        let chargebackEntries = 0; // entries that are NOT "Submitted"
 
         querySnapshot.forEach(doc => {
           const data = doc.data();
           totalEntries++;
-          if (data.Status === "Rejected") {
+          
+          // Count as chargeback if status is NOT "Submitted"
+          if (data.Status !== "Submitted") {
             chargebackEntries++;
           }
         });
 
+        console.log(`[getChargebackComparison] Period stats:`, {
+          period: `${startDateStr} to ${endDateStr}`,
+          totalEntries,
+          chargebackEntries,
+          submittedEntries: totalEntries - chargebackEntries
+        });
+
+        // Calculate rate with safety check for division by zero
         const rate = totalEntries > 0 ? (chargebackEntries / totalEntries) * 100 : 0;
 
         return {
@@ -96,16 +102,37 @@ const getChargebackComparisonFlow = ai.defineFlow(
           chargebackEntries,
         };
       } catch (error) {
-        console.error("[Genkit Flow Internal] Error getting period stats:", error);
+        console.error("[getChargebackComparison] Error getting period stats:", error);
         throw error;
       }
     }
 
     try {
+      const today = new Date();
+      
+      // Current period (last 30 days)
+      const currentPeriodEnd = endOfDay(today);
+      const currentPeriodStart = startOfDay(subDays(today, currentPeriodDays - 1));
+      
+      // Previous period (30 days before current period)
+      const previousPeriodEnd = subDays(currentPeriodStart, 1);
+      const previousPeriodStart = startOfDay(subDays(previousPeriodEnd, currentPeriodDays - 1));
+
       const [currentPeriod, previousPeriod] = await Promise.all([
         getStatsForPeriod(currentPeriodStart, currentPeriodEnd),
         getStatsForPeriod(previousPeriodStart, previousPeriodEnd),
       ]);
+
+      console.log('[getChargebackComparison] Final results:', {
+        currentPeriod: {
+          rate: currentPeriod.rate,
+          ratio: `${currentPeriod.chargebackEntries}/${currentPeriod.totalEntries}`
+        },
+        previousPeriod: {
+          rate: previousPeriod.rate,
+          ratio: `${previousPeriod.chargebackEntries}/${previousPeriod.totalEntries}`
+        }
+      });
 
       return {
         currentPeriod,
@@ -114,8 +141,7 @@ const getChargebackComparisonFlow = ai.defineFlow(
         filterApplied: leadVenderFilter,
       };
     } catch (error) {
-      console.error("[Genkit Flow Internal] Error in getChargebackComparisonFlow:", error);
-      
+      console.error("[getChargebackComparison] Error:", error);
       const defaultPeriod = {
         rate: 0,
         startDate: '',

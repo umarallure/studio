@@ -1,4 +1,3 @@
-
 "use client"
 
 import type { ReactNode } from "react";
@@ -32,29 +31,29 @@ interface AdvancedRound extends ReactBracketsRoundProps {
   seeds: AdvancedSeedProps[];
 }
 
-const getDisplayRoundTitle = (displayRoundIndex: number, teamCount: number | undefined): string => {
-  if (teamCount === 16) { 
-    switch (displayRoundIndex) {
-      case 0: return "Quarter Finals"; 
-      case 1: return "Semi Finals";  
-      case 2: return "Finals";       
-      case 3: return "Championship"; 
-      case 4: return "Finals";       
-      case 5: return "Semi Finals";  
-      case 6: return "Quarter Finals"; 
-      default: return `Round ${displayRoundIndex + 1}`;
+const getRoundTitle = (roundIndex: number, teamCount: number | undefined): string => {
+  if (teamCount === 16) {
+    switch (roundIndex) {
+      case 0: return "ROUND 1\nJUNE 16TH-20TH";
+      case 1: return "ROUND 2\nJUNE 23RD-27TH";
+      case 2: return "ROUND 3\nJUNE 30TH-JULY 4TH";
+      case 3: return "CHAMPIONSHIP\nTOURNAMENT\nJULY 14TH";
+      case 4: return "ROUND 3\nJUNE 30TH-JULY 4TH";
+      case 5: return "ROUND 2\nJUNE 23RD-27TH";
+      case 6: return "ROUND 1\nJUNE 16TH-20TH";
+      default: return `Round ${roundIndex + 1}`;
     }
-  } else if (teamCount === 8) { 
-     switch (displayRoundIndex) {
-      case 0: return "Semi Finals"; 
-      case 1: return "Finals";    
-      case 2: return "Championship";
-      case 3: return "Finals";    
-      case 4: return "Semi Finals"; 
-      default: return `Round ${displayRoundIndex + 1}`;
+  } else if (teamCount === 8) {
+    switch (roundIndex) {
+      case 0: return "ROUND 1\nJUNE 16TH-20TH";
+      case 1: return "SEMIFINALS\nJULY 7TH-11TH";
+      case 2: return "CHAMPIONSHIP\nTOURNAMENT\nJULY 14TH";
+      case 3: return "SEMIFINALS\nJULY 7TH-11TH";
+      case 4: return "ROUND 1\nJUNE 16TH-20TH";
+      default: return `Round ${roundIndex + 1}`;
     }
   }
-  return `Display Round ${displayRoundIndex + 1} (TC: ${teamCount || 'N/A'})`;
+  return `Round ${roundIndex + 1}`;
 };
 
 
@@ -289,37 +288,37 @@ export default function AdvancedTournamentBracket() {
       const expectedMatchesR1 = 8, expectedMatchesR2 = 4, expectedMatchesR3 = 2, expectedMatchesR4 = 1;
 
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(0, teamCount),
+        title: getRoundTitle(0, teamCount),
         seeds: realRound1.slice(0, expectedMatchesR1 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate))
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR1 / 2) - realRound1.slice(0, expectedMatchesR1 / 2).length), 1)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(1, teamCount),
+        title: getRoundTitle(1, teamCount),
         seeds: processedRound2.slice(0, expectedMatchesR2 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate))
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR2 / 2) - processedRound2.slice(0, expectedMatchesR2 / 2).length), 2)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(2, teamCount),
+        title: getRoundTitle(2, teamCount),
         seeds: processedRound3.slice(0, expectedMatchesR3 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate))
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR3 / 2) - processedRound3.slice(0, expectedMatchesR3 / 2).length), 3)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(3, teamCount),
+        title: getRoundTitle(3, teamCount),
         seeds: processedRound4.map(m => mapMatchupToAdvancedSeed(m, startDate)) 
                .concat(createPlaceholderSeeds(Math.max(0, expectedMatchesR4 - processedRound4.length), 4)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(4, teamCount),
+        title: getRoundTitle(4, teamCount),
         seeds: processedRound3.slice(expectedMatchesR3 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate)).reverse()
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR3 / 2) - processedRound3.slice(expectedMatchesR3 / 2).length), 3)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(5, teamCount),
+        title: getRoundTitle(5, teamCount),
         seeds: processedRound2.slice(expectedMatchesR2 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate)).reverse()
                 .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR2 / 2) - processedRound2.slice(expectedMatchesR2 / 2).length), 2)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(6, teamCount),
+        title: getRoundTitle(6, teamCount),
         seeds: realRound1.slice(expectedMatchesR1 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate)).reverse()
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR1 / 2) - realRound1.slice(expectedMatchesR1 / 2).length), 1)),
       });
@@ -346,27 +345,27 @@ export default function AdvancedTournamentBracket() {
       const expectedMatchesR1 = 4, expectedMatchesR2 = 2, expectedMatchesR3 = 1;
 
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(0, teamCount),
+        title: getRoundTitle(0, teamCount),
         seeds: realRound1.slice(0, expectedMatchesR1 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate))
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR1 / 2) - realRound1.slice(0, expectedMatchesR1 / 2).length), 1)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(1, teamCount),
+        title: getRoundTitle(1, teamCount),
         seeds: processedRound2.slice(0, expectedMatchesR2 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate))
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR2 / 2) - processedRound2.slice(0, expectedMatchesR2 / 2).length), 2)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(2, teamCount),
+        title: getRoundTitle(2, teamCount),
         seeds: processedRound3.map(m => mapMatchupToAdvancedSeed(m, startDate))
                .concat(createPlaceholderSeeds(Math.max(0, expectedMatchesR3 - processedRound3.length), 3)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(3, teamCount),
+        title: getRoundTitle(3, teamCount),
         seeds: processedRound2.slice(expectedMatchesR2 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate)).reverse()
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR2 / 2) - processedRound2.slice(expectedMatchesR2 / 2).length), 2)),
       });
       newDisplayRounds.push({
-        title: getDisplayRoundTitle(4, teamCount),
+        title: getRoundTitle(4, teamCount),
         seeds: realRound1.slice(expectedMatchesR1 / 2).map(m => mapMatchupToAdvancedSeed(m, startDate)).reverse()
                .concat(createPlaceholderSeeds(Math.max(0, (expectedMatchesR1 / 2) - realRound1.slice(expectedMatchesR1 / 2).length), 1)),
       });
@@ -568,8 +567,22 @@ export default function AdvancedTournamentBracket() {
 }
 
 
-function RoundTitleInternal({ title, roundIndex }: { title: ReactNode; roundIndex: number }) {
-  return <div className="text-center text-lg font-semibold text-muted-foreground mb-3 mt-2 py-1 px-3 bg-muted/50 rounded-md">{String(title)}</div>;
+function RoundTitleInternal({ title }: { title: ReactNode }) {
+  const lines = String(title || '').split('\n').filter(Boolean);
+  return (
+    <div className="text-center font-semibold text-primary mb-3 mt-2 py-2 px-4 bg-muted/50 rounded-md">
+      {lines.length > 0 ? (
+        <>
+          <div className="text-lg font-bold">{lines[0]}</div>
+          {lines.slice(1).map((line, i) => (
+            <div key={i} className="text-sm mt-1 text-muted-foreground">
+              {line}
+            </div>
+          ))}
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 interface CustomSeedInternalProps {

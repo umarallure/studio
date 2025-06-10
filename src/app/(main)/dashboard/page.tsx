@@ -12,6 +12,7 @@ import { getEntryStatsByStatusForChart } from '@/ai/flows/get-entry-stats-by-sta
 import { getTeamChargebackRate } from '@/ai/flows/get-team-chargeback-rate-flow';
 import { getDailySubmissionsInRange } from '@/ai/flows/get-daily-submissions-in-range-flow';
 import { getDailyChargebackRate } from '@/ai/flows/get-daily-chargeback-rate-flow';
+import { getChargebackComparison } from '@/ai/flows/get-chargeback-comparison-flow';
 
 import { format as formatDate, subDays, isValid, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -92,12 +93,21 @@ export default function DashboardPage() {
     trend: 'neutral'
   });
 
-  // Static data for new Chargeback Comparison chart
-  const chargebackComparisonData = [
-    { metric: 'Current Period', value: 0 },
-    { metric: 'Previous Period', value: 1.2 }, // Adjusted to be a more realistic percentage
-    { metric: 'Industry Avg', value: 5.0 },
-  ];
+  // State for chargeback comparison data
+  const [chargebackComparisonData, setChargebackComparisonData] = useState([
+    { metric: 'Current Period', value: 0, entries: 'N/A' },
+    { metric: 'Previous Period', value: 0, entries: 'N/A' },
+    { metric: 'Industry Avg', value: 5.0, entries: 'Standard' }
+  ]);
+  const [chargebackComparisonStats, setChargebackComparisonStats] = useState<{
+    currentPeriod: number;
+    previousPeriod: number;
+    industryAverage: number;
+  }>({
+    currentPeriod: 0,
+    previousPeriod: 0,
+    industryAverage: 5.0
+  });
 
 
   const fixedDateRange = useMemo(() => {
@@ -169,6 +179,7 @@ export default function DashboardPage() {
         topAgentResult,
         entryStatsResult,
         chargebackResult,
+        chargebackComparisonResult
       ] = await Promise.all([
         getDailySubmissions({ targetDate: formatDate(fixedDateRange.to, 'yyyy-MM-dd'), leadVenderFilter: filterNameForCards }),
         getDailySubmissions({ targetDate: formatDate(subDays(fixedDateRange.to, 1), 'yyyy-MM-dd'), leadVenderFilter: filterNameForCards }),
@@ -178,6 +189,10 @@ export default function DashboardPage() {
             daysToCover: FIXED_DATE_RANGE_DAYS 
         }),
         getTeamChargebackRate({ leadVenderFilter: filterNameForCards }),
+        getChargebackComparison({ 
+          leadVenderFilter: filterNameForCards,
+          currentPeriodDays: FIXED_DATE_RANGE_DAYS
+        })
       ]);
 
       setDailySubmissionsForCard({
@@ -213,6 +228,33 @@ export default function DashboardPage() {
         achievement: parseFloat(achievement.toFixed(1)),
         trend: achievement >= 80 ? 'up' : achievement >= 50 ? 'neutral' : 'down'
       });
+
+      // Update chargeback comparison stats
+      setChargebackComparisonStats({
+        currentPeriod: parseFloat(chargebackComparisonResult.currentPeriod.rate.toFixed(2)),
+        previousPeriod: parseFloat(chargebackComparisonResult.previousPeriod.rate.toFixed(2)),
+        industryAverage: chargebackComparisonResult.industryAverage
+      });
+
+      // Update the chargebackComparisonData
+      const newChargebackComparisonData = [
+        { 
+          metric: 'Current Period', 
+          value: parseFloat(chargebackComparisonResult.currentPeriod.rate.toFixed(2)),
+          entries: `${chargebackComparisonResult.currentPeriod.chargebackEntries}/${chargebackComparisonResult.currentPeriod.totalEntries}`
+        },
+        { 
+          metric: 'Previous Period', 
+          value: parseFloat(chargebackComparisonResult.previousPeriod.rate.toFixed(2)),
+          entries: `${chargebackComparisonResult.previousPeriod.chargebackEntries}/${chargebackComparisonResult.previousPeriod.totalEntries}`
+        },
+        { 
+          metric: 'Industry Avg', 
+          value: chargebackComparisonResult.industryAverage,
+          entries: 'Standard'
+        }
+      ];
+      setChargebackComparisonData(newChargebackComparisonData);
 
       const fixedRangeTextShort = `Last ${FIXED_DATE_RANGE_DAYS}D`;
 
@@ -641,12 +683,22 @@ export default function DashboardPage() {
         {/* Chargeback Analysis */}
         <Card className="bg-card text-card-foreground shadow-xl rounded-lg">
           <CardContent className="p-6 space-y-4">
-            <h2 className="text-xl font-bold font-headline flex items-center text-foreground"><ClipboardList className="mr-2 h-6 w-6 text-red-500" /> Chargeback Analysis</h2>
+            <h2 className="text-xl font-bold font-headline flex items-center text-foreground">
+              <ClipboardList className="mr-2 h-6 w-6 text-red-500" /> Chargeback Analysis
+            </h2>
             <ul className="text-sm space-y-1 text-muted-foreground">
-              <li>• Selected Period: <strong className="text-foreground">0.0%</strong></li>
-              <li>• Previous Period: <strong className="text-foreground">1.2%</strong></li>
-              <li>• Industry Average: <strong className="text-foreground">5.0% (example)</strong></li>
-              <li>• Performance: <Check className="inline h-4 w-4 mr-1 text-green-500" /> <span className="text-green-500 font-medium">Below Average</span></li>
+              <li>• Selected Period: <strong className="text-foreground">{chargebackComparisonStats.currentPeriod}%</strong></li>
+              <li>• Previous Period: <strong className="text-foreground">{chargebackComparisonStats.previousPeriod}%</strong></li>
+              <li>• Industry Average: <strong className="text-foreground">{chargebackComparisonStats.industryAverage}%</strong></li>
+              <li>• Performance: {chargebackComparisonStats.currentPeriod <= chargebackComparisonStats.industryAverage ? (
+                <><Check className="inline h-4 w-4 mr-1 text-green-500" /> 
+                  <span className="text-green-500 font-medium">Below Average (Good)</span>
+                </>
+              ) : (
+                <><AlertTriangleIcon className="inline h-4 w-4 mr-1 text-destructive" /> 
+                  <span className="text-destructive font-medium">Above Average (Action Needed)</span>
+                </>
+              )}</li>
             </ul>
 
             <div>
@@ -654,15 +706,37 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={chargebackComparisonData} margin={{ top: 20, right: 0, left: -25, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="metric" fontSize={10} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
-                  <YAxis fontSize={10} tickFormatter={(value) => `${value}%`} tick={{ fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="metric" 
+                    fontSize={10} 
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }} 
+                    stroke="hsl(var(--border))" 
+                  />
+                  <YAxis 
+                    fontSize={10} 
+                    tickFormatter={(value) => `${value}%`} 
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }} 
+                    stroke="hsl(var(--border))" 
+                  />
                   <RechartsTooltip 
-                    formatter={(value: any, name: any, props: any) => [`${props.payload.value}%`, props.payload.metric]}
+                    formatter={(value: any, name: any, props: any) => [
+                      `${props.payload.value}% (${props.payload.entries})`,
+                      props.payload.metric
+                    ]}
                     cursor={{fill: 'hsl(var(--accent)/0.1)'}}
-                    contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--popover-foreground))' }}
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--popover))', 
+                      borderColor: 'hsl(var(--border))', 
+                      color: 'hsl(var(--popover-foreground))' 
+                    }}
                     labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                   />
-                  <Bar dataKey="value" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} barSize={40} />
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    fill="hsl(var(--destructive))" 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={40} 
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>

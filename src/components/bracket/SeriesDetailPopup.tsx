@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -13,11 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Info, CalendarX, Trophy } from "lucide-react";
+import { Loader2, Info, CalendarX, Trophy, X, BarChart3, Users, AlertCircle, TrendingUp, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getMatchScheduledDates, type GetMatchScheduledDatesInput } from '@/ai/flows/get-match-scheduled-dates-flow';
 import { getMatchDailyResult, type GetMatchDailyResultInput, type GetMatchDailyResultOutput } from '@/ai/flows/get-match-daily-result-flow';
-import { format, parseISO, isValid, addDays, getDay } from 'date-fns';
+import { getTeamDailyPerformance } from '@/ai/flows/get-team-daily-performance-flow';
+import { format as formatDate, parseISO, isValid, addDays, getDay } from 'date-fns';
+import { Badge } from "@/components/ui/badge";
 
 interface SeriesDetailPopupProps {
   isOpen: boolean;
@@ -30,6 +31,18 @@ interface SeriesDetailPopupProps {
   tournamentStartDate: Date | null;
 }
 
+interface TeamDailyStats {
+  totalEntries: number;
+  submittedEntries: number;
+  chargebackEntries: number;
+  submissionRate: number;
+  chargebackRate: number;
+  bestAgent: {
+    name: string;
+    submissionCount: number;
+  };
+}
+
 interface DailyStatDisplayData {
   date: string; 
   originalDate: string; 
@@ -39,6 +52,9 @@ interface DailyStatDisplayData {
   team2Score: number;
   winner: string | null;
   status: string; 
+  team1Stats: TeamDailyStats;
+  team2Stats: TeamDailyStats;
+  dailyWinner: string | null;
 }
 
 const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
@@ -129,25 +145,44 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
 
         const resultsFromFlow = await Promise.all(dailyResultsPromises);
 
-        const newDailyStats: DailyStatDisplayData[] = resultsFromFlow.map((result, index) => {
-          const originalDate = sortedScheduledDates[index];
-          let displayDate = `Day ${index + 1}`;
-          try {
-            displayDate = format(parseISO(originalDate), 'EEE, MMM d');
-          } catch (e) { /* ignore format error, use Day X */ }
+        const newDailyStats: DailyStatDisplayData[] = await Promise.all(
+          sortedScheduledDates.map(async (dateStr) => {
+            // Get basic match result
+            const dailyResultInput: GetMatchDailyResultInput = {
+              tournamentId,
+              roundNum: roundId, 
+              matchId: matchupId,
+              targetDate: dateStr,
+            };
+            const matchResult = await getMatchDailyResult(dailyResultInput);
 
-          return {
-            date: displayDate,
-            originalDate: originalDate,
-            team1Name: result.team1Name || team1Name || "Team 1",
-            team2Name: result.team2Name || team2Name || "Team 2",
-            team1Score: result.team1Score,
-            team2Score: result.team2Score,
-            winner: result.winner,
-            status: result.exists ? (result.status || "Unknown") : "Not Found",
-          };
-        });
-        
+            // Get detailed team stats
+            const [team1Performance, team2Performance] = await Promise.all([
+              getTeamDailyPerformance({ teamName: team1Name, targetDate: dateStr }),
+              getTeamDailyPerformance({ teamName: team2Name, targetDate: dateStr })
+            ]);
+
+            // Determine daily winner based on submission counts
+            const dailyWinner = team1Performance.submittedEntries > team2Performance.submittedEntries ? team1Name :
+                               team2Performance.submittedEntries > team1Performance.submittedEntries ? team2Name :
+                               null;
+
+            return {
+              date: formatDate(parseISO(dateStr), 'EEE, MMM d'),
+              originalDate: dateStr,
+              team1Name: matchResult.team1Name || team1Name,
+              team2Name: matchResult.team2Name || team2Name,
+              team1Score: team1Performance.submittedEntries,
+              team2Score: team2Performance.submittedEntries,
+              winner: dailyWinner,
+              status: matchResult.status || "Unknown",
+              team1Stats: team1Performance,
+              team2Stats: team2Performance,
+              dailyWinner
+            };
+          })
+        );
+
         setDailyStats(newDailyStats);
 
       } catch (err: any) {
@@ -172,90 +207,165 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
     return dayMax > max ? dayMax : max;
   }, 0);
 
+  function DailyStatCard({ day }: { day: DailyStatDisplayData }) {
+    return (
+      <Card className="shadow-md border-border/70">
+        <CardHeader className="p-3 bg-muted/30 rounded-t-md">
+          <CardTitle className="text-center text-sm font-semibold text-muted-foreground">{day.date}</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 space-y-4">
+          {/* Team 1 Stats */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold text-sm">{day.team1Name}</h3>
+              <Badge variant={day.winner === day.team1Name ? "default" : "secondary"}>
+                {day.winner === day.team1Name ? "Winner" : ""}
+              </Badge>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Total Entries:</span>
+                </div>
+                <p className="font-mono">{day.team1Stats.totalEntries}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  <span className="text-muted-foreground">Submitted:</span>
+                </div>
+                <p className="font-mono">{day.team1Stats.submittedEntries}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-muted-foreground">Chargeback Rate:</span>
+                </div>
+                <p className="font-mono">{day.team1Stats.chargebackRate}%</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <User className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Best Agent:</span>
+                </div>
+                <p className="font-mono text-xs truncate" title={`${day.team1Stats.bestAgent.name} (${day.team1Stats.bestAgent.submissionCount})`}>
+                  {day.team1Stats.bestAgent.name}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Team 2 Stats */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold text-sm">{day.team2Name}</h3>
+              <Badge variant={day.winner === day.team2Name ? "default" : "secondary"}>
+                {day.winner === day.team2Name ? "Winner" : ""}
+              </Badge>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Total Entries:</span>
+                </div>
+                <p className="font-mono">{day.team2Stats.totalEntries}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  <span className="text-muted-foreground">Submitted:</span>
+                </div>
+                <p className="font-mono">{day.team2Stats.submittedEntries}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <span className="text-muted-foreground">Chargeback Rate:</span>
+                </div>
+                <p className="font-mono">{day.team2Stats.chargebackRate}%</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <User className="h-4 w-4 text-primary" />
+                  <span className="text-muted-foreground">Best Agent:</span>
+                </div>
+                <p className="font-mono text-xs truncate" title={`${day.team2Stats.bestAgent.name} (${day.team2Stats.bestAgent.submissionCount})`}>
+                  {day.team2Stats.bestAgent.name}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {day.status !== "Not Found" && (
+            <div className="pt-2 text-center">
+              <Badge variant={day.status === "Completed" ? "outline" : "secondary"}>
+                {day.status}
+              </Badge>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] w-[95%] max-h-[90vh] flex flex-col bg-card">
-        <DialogHeader className="p-4 border-b flex-shrink-0">
-          <DialogTitle className="text-xl text-primary font-headline">
+      <DialogContent className="max-w-[95vw] w-[95vw] h-[95vh] flex flex-col bg-card p-0">
+        <button 
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </button>
+        <DialogHeader className="p-6 border-b flex-shrink-0 bg-card/50 backdrop-blur sticky top-0 z-10">
+          <DialogTitle className="text-2xl text-primary font-headline">
             Series Details: {team1Name || "Team 1"} vs {team2Name || "Team 2"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-base">
             Daily submission counts for this match-up (Round {roundId}).
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-grow min-h-0"> {/* Added min-h-0 */}
-          <div className="p-4"> {/* Moved padding here */}
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-10 space-y-4">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="text-lg text-foreground">Loading Daily Stats...</p>
-              </div>
-            ) : error ? (
-              <div className="text-center py-10 text-destructive flex flex-col items-center gap-2">
-                  <CalendarX className="h-10 w-10"/>
-                  <p className="font-semibold">Error Loading Data</p>
-                  <p className="text-sm">{error}</p>
-              </div>
-            ) : dailyStats.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-2">
-                  <Info className="h-10 w-10"/>
-                  <p>No daily data available for this match's scheduled days.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {dailyStats.map((day) => (
-                  <Card key={day.originalDate} className="shadow-md border-border/70">
-                    <CardHeader className="p-3 bg-muted/30 rounded-t-md">
-                      <CardTitle className="text-center text-sm font-semibold text-muted-foreground">{day.date}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3 space-y-3">
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className={`font-medium ${day.winner === day.team1Name ? 'text-accent font-bold' : 'text-card-foreground'}`}>{day.team1Name}</span>
-                          <span className="font-mono">{day.team1Score} subs</span>
-                        </div>
-                        <Progress 
-                          value={maxSubmissionsPerDay > 0 ? (day.team1Score / maxSubmissionsPerDay) * 100 : 0} 
-                          className={`h-2.5 ${day.winner === day.team1Name ? '[&>div]:bg-accent' : '[&>div]:bg-primary'}`} 
-                        />
-                      </div>
-
-                      <Separator className="my-2"/>
-
-                      <div className="space-y-1.5">
-                         <div className="flex justify-between items-center text-sm">
-                          <span className={`font-medium ${day.winner === day.team2Name ? 'text-accent font-bold' : 'text-card-foreground'}`}>{day.team2Name}</span>
-                          <span className="font-mono">{day.team2Score} subs</span>
-                        </div>
-                        <Progress 
-                          value={maxSubmissionsPerDay > 0 ? (day.team2Score / maxSubmissionsPerDay) * 100 : 0} 
-                          className={`h-2.5 ${day.winner === day.team2Name ? '[&>div]:bg-accent' : '[&>div]:bg-primary'}`}
-                        />
-                      </div>
-                      
-                      {day.winner && day.status === "Completed" && (
-                          <div className="text-xs text-center pt-2 text-accent font-semibold flex items-center justify-center gap-1">
-                             <Trophy className="h-3 w-3"/> Daily Winner: {day.winner}
-                          </div>
-                      )}
-                       {day.status !== "Completed" && day.status !== "Not Found" && (
-                          <div className="text-xs text-center pt-2 text-muted-foreground">
-                              Status: {day.status}
-                          </div>
-                      )}
-                       {day.status === "Not Found" && (
-                          <div className="text-xs text-center pt-2 text-muted-foreground">
-                              No data recorded for this day.
-                          </div>
-                      )}
-
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+        <ScrollArea className="flex-grow p-6">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-10 space-y-4">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="text-lg text-foreground">Loading Daily Stats...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-10 text-destructive flex flex-col items-center gap-2">
+              <CalendarX className="h-10 w-10"/>
+              <p className="font-semibold">Error Loading Data</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          ) : dailyStats.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-2">
+              <Info className="h-10 w-10"/>
+              <p>No daily data available for this match's scheduled days.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
+              {/* First four cards in 2x2 grid */}
+              {dailyStats.slice(0, 4).map((day) => (
+                <DailyStatCard key={day.originalDate} day={day} />
+              ))}
+              {/* Last card centered if it exists */}
+              {dailyStats.length > 4 && (
+                <div className="md:col-span-2 flex justify-center">
+                  <div className="w-full md:w-1/2">
+                    <DailyStatCard day={dailyStats[4]} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </ScrollArea>
       </DialogContent>
     </Dialog>
