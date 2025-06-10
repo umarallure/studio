@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -111,10 +110,10 @@ const ReactBracketsViewer: React.FC<ReactBracketsViewerProps> = ({ rounds, title
 
           /* Adjust spacing if necessary */
           section > div { /* Round container */
-            margin-right: 30px !important; /* Space between rounds */
+            margin-right: 40px !important; /* Space between rounds */
           }
           section > div > div:not(:first-child) { /* Seed items within a round */
-             margin-top: 30px !important; /* Space between matchups vertically */
+             margin-top: 16px !important; /* Reduced space between matchups vertically */
           }
         `}</style>
       </CardContent>

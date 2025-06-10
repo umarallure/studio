@@ -4,7 +4,7 @@
 @tailwind utilities;
 
 body {
-  font-family: var(--font-pt-sans), sans-serif;
+  font-family: var(--font-pt-sans), Arial, Helvetica, sans-serif;
 }
 
 @layer base {
@@ -105,3 +105,4 @@ body {
     @apply bg-background text-foreground font-body;
   }
 }
+

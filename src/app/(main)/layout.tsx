@@ -8,11 +8,11 @@ export default function MainAppLayout({ children }: { children: ReactNode }) {
     <AuthCheck>
       <div className="flex min-h-screen flex-col bg-background">
         <Header />
-        <main className="flex-1 container mx-auto px-4 py-8 md:px-8">
+        <main>
           {children}
         </main>
         <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-          © {new Date().getFullYear()} Bracket Blitz. All rights reserved.
+          © {new Date().getFullYear()} BPO Games. All rights reserved.
         </footer>
       </div>
     </AuthCheck>

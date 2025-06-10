@@ -1,331 +1,677 @@
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { ArrowRight, CheckCircle, Star, Trophy, Calendar, Users, Target, Award, Clock, DollarSign } from "lucide-react"
+import Link from "next/link"
 
-"use client";
-
-import { useState, useEffect, useCallback } from 'react';
-import BracketDisplay from '@/components/bracket/BracketDisplay';
-import { mapFirestoreDocToMatchup, mapDocToTournamentSettings } from '@/lib/tournament-config';
-import type { TournamentData, Round, Matchup as MatchupType, TournamentSettings } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { RefreshCw, Trophy, Loader2, AlertTriangle, Info, CheckCircle, Award } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, orderBy, limit, getDocs, doc } from 'firebase/firestore';
-import { tournamentPrize } from '@/lib/mock-data'; // Static prize for now
-
-const ROUND_NAMES_BASE: { [key: string]: string } = {
-  "1": "Round 1",
-  "2": "Round 2",
-  "3": "Round 3",
-  "4": "Round 4",
-  "5": "Round 5",
-};
-
-const getRoundNames = (numberOfRounds: number): { [key: string]: string } => {
-  const names: { [key: string]: string } = {};
-  for (let i = 1; i <= numberOfRounds; i++) {
-    if (i === numberOfRounds) names[String(i)] = `Round ${i}: Grand Finals`;
-    else if (i === numberOfRounds - 1 && numberOfRounds > 1) names[String(i)] = `Round ${i}: Semi-Finals`;
-    else if (i === numberOfRounds - 2 && numberOfRounds > 2) names[String(i)] = `Round ${i}: Quarter-Finals`;
-    else names[String(i)] = ROUND_NAMES_BASE[String(i)] || `Round ${i}`;
-  }
-  return names;
-};
-
-
-export default function BracketPage() {
-  const [activeTournament, setActiveTournament] = useState<TournamentSettings | null>(null);
-  const [tournamentDisplayData, setTournamentDisplayData] = useState<TournamentData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [criticalError, setCriticalError] = useState<string | null>(null);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    console.log("[BracketPage Effect 1] Initializing: Fetching latest tournament.");
-    setIsLoading(true);
-    setCriticalError(null);
-    const fetchLatestTournament = async () => {
-      try {
-        const tournamentsRef = collection(db, "tournaments");
-        const q = query(tournamentsRef, orderBy("createdAt", "desc"), limit(1));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-          setCriticalError("No tournaments found. Please create a tournament first.");
-          setActiveTournament(null);
-          console.log("[BracketPage Effect 1] No tournaments found.");
-        } else {
-          const tournamentDoc = querySnapshot.docs[0];
-          const settings = mapDocToTournamentSettings(tournamentDoc.data(), tournamentDoc.id);
-          
-          if (!settings || !settings.id || typeof settings.numberOfRounds !== 'number' || settings.numberOfRounds < 0) {
-            setCriticalError(`Fetched tournament "${settings?.name || 'Unknown'}" has invalid configuration.`);
-            setActiveTournament(null);
-            console.log("[BracketPage Effect 1] Invalid tournament settings for:", settings?.name);
-          } else {
-            setActiveTournament(settings);
-            console.log("[BracketPage Effect 1] Active tournament set:", settings.name, "ID:", settings.id);
-          }
-        }
-      } catch (error) {
-        console.error("[BracketPage Effect 1] Error fetching latest tournament:", error);
-        setCriticalError("Failed to load tournament settings.");
-        setActiveTournament(null);
-      } finally {
-        // setIsLoading(false) will be handled by the second effect or if activeTournament remains null
-      }
-    };
-    fetchLatestTournament();
-  }, []);
-
-
-  useEffect(() => {
-    if (!activeTournament || !activeTournament.id || typeof activeTournament.numberOfRounds !== 'number' || activeTournament.numberOfRounds < 0) {
-       if (!criticalError) { 
-            console.log("[BracketPage Effect 2] Bailing out: Active tournament is null or invalid. Current isLoading:", isLoading);
-            if (isLoading) setIsLoading(false); 
-       }
-      return;
-    }
-    
-    console.log(`[BracketPage Effect 2] Active tournament found: "${activeTournament.name}". Preparing to load bracket data. Current isLoading: ${isLoading}`);
-    if(!isLoading) setIsLoading(true); 
-    setCriticalError(null); 
-    setTournamentDisplayData(null); 
-
-    if (activeTournament.numberOfRounds === 0) {
-        console.log(`[BracketPage Effect 2] Tournament "${activeTournament.name}" has 0 rounds. Setting empty display data.`);
-        setTournamentDisplayData({ 
-            id: activeTournament.id,
-            name: activeTournament.name,
-            teamCount: activeTournament.teamCount,
-            numberOfRounds: activeTournament.numberOfRounds,
-            startDate: activeTournament.startDate,
-            overallWinnerName: activeTournament.overallWinnerName,
-            status: activeTournament.status,
-            rounds: [], 
-            prize: tournamentPrize 
-        });
-        setIsLoading(false); 
-        return;
-    }
-
-    const unsubscribes: (() => void)[] = [];
-    let roundsDataCollector: { [roundId: string]: MatchupType[] } = {};
-    let roundsProcessedCount = 0; 
-    const totalListenersExpected = activeTournament.numberOfRounds;
-    const currentRoundNames = getRoundNames(activeTournament.numberOfRounds);
-    const initiallyProcessedRounds = new Set<string>(); 
-
-    console.log(`[BracketPage Effect 2] Expecting ${totalListenersExpected} rounds for "${activeTournament.name}".`);
-
-    const checkAllInitialLoadsComplete = () => {
-      roundsProcessedCount++;
-      console.log(`[BracketPage Effect 2] Round processed initial data/error (${roundsProcessedCount}/${totalListenersExpected}).`);
-      if (roundsProcessedCount >= totalListenersExpected) {
-        console.log(`[BracketPage Effect 2] All ${totalListenersExpected} rounds processed their initial data/error. Setting isLoading to false.`);
-        setIsLoading(false);
-        clearTimeout(loadingTimeout); 
-      }
-    };
-
-    for (let i = 1; i <= totalListenersExpected; i++) {
-      const roundId = String(i);
-      const matchesCollectionRef = collection(db, "tournaments", activeTournament.id, "rounds", roundId, 'matches');
-      const qMatches = query(matchesCollectionRef, orderBy('__name__'));
-      console.log(`[BracketPage Effect 2] Setting up listener for Round ${roundId} in tournament ${activeTournament.id}`);
-
-      const unsubscribeRound = onSnapshot(qMatches, (snapshot) => {
-        console.log(`[BracketPage Effect 2] Data received for Round ${roundId}. Processing ${snapshot.docs.length} matches.`);
-        const matchupsForRound: MatchupType[] = [];
-        snapshot.forEach((matchDoc) => {
-          const matchup = mapFirestoreDocToMatchup(matchDoc.id, roundId, matchDoc.data());
-          if (matchup) {
-            matchupsForRound.push(matchup);
-          }
-        });
-        
-        roundsDataCollector[roundId] = matchupsForRound;
-
-        const newRounds: Round[] = Object.keys(roundsDataCollector)
-          .filter(rId => /^\d+$/.test(rId)) 
-          .map(rId => ({
-            id: rId,
-            name: currentRoundNames[rId] || `Round ${rId}`,
-            matchups: roundsDataCollector[rId].sort((a,b) => {
-                const numA = parseInt(a.id.replace('match', ''), 10);
-                const numB = parseInt(b.id.replace('match', ''), 10);
-                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                return a.id.localeCompare(b.id);
-            }),
-          }))
-          .sort((a, b) => parseInt(a.id) - parseInt(b.id));
-        
-        if (activeTournament) { 
-            setTournamentDisplayData({ 
-                id: activeTournament.id,
-                name: activeTournament.name,
-                teamCount: activeTournament.teamCount,
-                numberOfRounds: activeTournament.numberOfRounds,
-                startDate: activeTournament.startDate,
-                overallWinnerName: activeTournament.overallWinnerName,
-                status: activeTournament.status,
-                rounds: newRounds, 
-                prize: tournamentPrize 
-            });
-        }
-        
-        if (!initiallyProcessedRounds.has(roundId)) {
-            initiallyProcessedRounds.add(roundId);
-            checkAllInitialLoadsComplete();
-        }
-
-      }, (error) => {
-        console.error(`[BracketPage Effect 2] Error fetching matchups for tournament ${activeTournament.id}, round ${roundId}:`, error);
-        toast({
-          title: `Error Loading Round ${roundId}`,
-          description: `Could not load data for round ${roundId}. It might be incomplete.`,
-          variant: "destructive",
-        });
-        setCriticalError(prev => prev || `Failed to load data for Round ${roundId} of tournament ${activeTournament.name}.`);
-        
-        if (!initiallyProcessedRounds.has(roundId)) {
-             initiallyProcessedRounds.add(roundId);
-            checkAllInitialLoadsComplete();
-        }
-      });
-      unsubscribes.push(unsubscribeRound);
-    }
-
-    const loadingTimeout = setTimeout(() => {
-        if (isLoading) { 
-            console.warn(`[BracketPage Effect 2] Loading timeout after 10s for "${activeTournament?.name}". Processed ${roundsProcessedCount}/${totalListenersExpected} rounds.`);
-            setIsLoading(false); 
-            if (!criticalError && (!tournamentDisplayData || Object.keys(roundsDataCollector).filter(k => /^\d+$/.test(k)).length === 0) && activeTournament) {
-                setCriticalError(`Loading tournament data for "${activeTournament.name}" timed out.`);
-                toast({
-                    title: "Loading Timeout",
-                    description: "Could not retrieve bracket data in time. Display may be incomplete.",
-                    variant: "warning",
-                });
-            } else if (!criticalError && activeTournament) {
-                 toast({
-                    title: "Partial Data or Timeout",
-                    description: `Some rounds for "${activeTournament.name}" may not have loaded. Display may be incomplete.`,
-                    variant: "warning",
-                });
-            }
-        }
-    }, 10000); 
-
-    return () => {
-      console.log("[BracketPage Effect 2] Cleanup: Unsubscribing from Firestore listeners and clearing timeout.");
-      unsubscribes.forEach(unsub => unsub());
-      clearTimeout(loadingTimeout);
-    };
-  }, [activeTournament, toast]); 
-
-  const confirmLiveUpdates = () => {
-    toast({
-      title: "Live Updates Active",
-      description: "Bracket data updates in real-time from the server.",
-      variant: "default",
-      duration: 3000,
-      className: "bg-green-100 border-green-500 text-green-700 dark:bg-green-800 dark:text-green-200 dark:border-green-600"
-    });
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 space-y-4 min-h-[calc(100vh-200px)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="text-lg text-foreground font-headline">Loading Tournament Bracket...</p>
-        {activeTournament && <p className="text-sm text-muted-foreground">Fetching data for: {activeTournament.name}</p>}
-        {!activeTournament && <p className="text-sm text-muted-foreground">Finding latest tournament...</p>}
-      </div>
-    );
-  }
-  
-  if (criticalError && (!tournamentDisplayData || tournamentDisplayData.rounds.length === 0 || tournamentDisplayData.rounds.every(r => r.matchups.length === 0))) {
-     return (
-      <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
-        <AlertTriangle className="h-16 w-16 text-destructive" />
-        <h2 className="text-3xl font-headline text-destructive mt-4">Error Loading Bracket</h2>
-        <p className="text-muted-foreground max-w-lg">{criticalError}</p>
-        <p className="text-sm text-muted-foreground mt-2">
-          Please ensure your tournament setup is correct and data is being populated in Firestore.
-          {activeTournament?.id && <>Matchup documents are expected at:
-          <br /> <code className="text-xs bg-muted p-1 rounded inline-block my-1">tournaments/{activeTournament.id}/rounds/[roundNum]/matches/[matchId]</code>.</>}
-        </p>
-        <Button onClick={() => window.location.reload()} variant="destructive" className="mt-6">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Try Reloading Page
-        </Button>
-      </div>
-    );
-  }
-  
-  const noDataExists = !criticalError && (!tournamentDisplayData || (tournamentDisplayData.numberOfRounds > 0 && (tournamentDisplayData.rounds.length === 0 || tournamentDisplayData.rounds.every(r => r.matchups.length === 0)) ) );
-
-  if (noDataExists && activeTournament && activeTournament.status !== "Completed") {
-     return (
-      <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center min-h-[calc(100vh-200px)]">
-        <Info className="h-16 w-16 text-primary" />
-        <h2 className="text-3xl font-headline text-primary mt-4">{activeTournament ? `Bracket for "${activeTournament.name}" is Empty` : "Tournament Bracket is Empty"}</h2>
-        <p className="text-muted-foreground max-w-lg">
-          Matchup documents will appear here automatically.
-          {activeTournament?.id && <>Ensure data is written to: <code className="text-xs bg-muted p-1 rounded inline-block my-1">tournaments/{activeTournament.id}/rounds/[roundNum]/matches/[matchId]</code>.</>}
-        </p>
-        <Button onClick={() => window.location.reload()} variant="outline" className="mt-6">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh Page
-        </Button>
-      </div>
-    );
-  }
-  
+export default function BPOGamesLanding() {
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-card rounded-lg shadow">
-        <h1 className="font-headline text-3xl md:text-4xl font-bold text-primary">{tournamentDisplayData?.name || "Tournament Bracket"}</h1>
-        <Button onClick={confirmLiveUpdates} variant="ghost" className="text-accent hover:bg-accent/10 hover:text-accent-foreground">
-          <CheckCircle className="mr-2 h-5 w-5" />
-          Live Updates Active
-        </Button>
-      </div>
-
-      {tournamentDisplayData?.status === "Completed" && tournamentDisplayData.overallWinnerName && (
-        <Card className="bg-gradient-to-r from-accent/80 to-primary/80 text-primary-foreground shadow-2xl border-accent">
-          <CardHeader className="text-center">
-            <Award className="h-16 w-16 mx-auto text-amber-300 drop-shadow-lg" />
-            <CardTitle className="font-headline text-4xl mt-2">Tournament Winner!</CardTitle>
-            <CardDescription className="text-primary-foreground/90 text-lg">Congratulations to</CardDescription>
-          </CardHeader>
-          <CardContent className="text-center pb-6">
-            <p className="font-headline text-5xl font-bold text-white drop-shadow-md">
-              {tournamentDisplayData.overallWinnerName}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {tournamentDisplayData?.prize && (
-        <Alert className="border-accent bg-accent/5 text-accent-foreground">
-            <Trophy className="h-5 w-5 text-accent" />
-            <AlertTitle className="font-headline text-accent">{tournamentDisplayData.prize ? "Tournament Prize" : "Prize Information"}</AlertTitle>
-            <AlertDescription className="text-accent/90">
-            {tournamentDisplayData.prize || "Details about the tournament prize will be shown here."}
-            </AlertDescription>
-        </Alert>
-      )}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      {/* Header */}
       
-      {tournamentDisplayData && tournamentDisplayData.rounds.length > 0 && (
-        <BracketDisplay 
-          tournamentData={tournamentDisplayData} 
-        />
-      )}
 
+      {/* Hero Section */}
+      <section className="py-16 lg:py-24">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <Badge variant="secondary" className="mb-6 px-4 py-2 bg-[#0a7578]/10 text-[#0a7578]">
+                🏆 Registration Open - Deadline June 9th
+              </Badge>
+
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
+                The{" "}
+                <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
+                  BPO Games
+                </span>
+              </h1>
+
+              <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-6">2025 Pakistani Super League</h2>
+
+              <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
+                The Ultimate Call Center Throwdown! Join Pakistan's most competitive BPO tournament where
+                <strong> 16 teams</strong> battle for glory and <strong>$4,500 in prizes</strong> over 6 intense weeks.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+                <Button
+                  size="lg"
+                  className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] hover:from-[#0a7578]/90 hover:to-[#b17e1e]/90 text-lg px-8 py-6"
+                >
+                  Register Your Team
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="text-lg px-8 py-6 border-[#0a7578] text-[#0a7578] hover:bg-[#0a7578]/5"
+                >
+                  Download Rules
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-start space-x-8 text-sm text-muted-foreground">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span>Free to participate</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span>6-week tournament</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span>$4,500 total prizes</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Hero Image Space */}
+            <div className="relative">
+              <div className="aspect-square bg-gradient-to-br from-[#0a7578]/10 to-[#b17e1e]/10 rounded-3xl flex items-center justify-center border-2 border-dashed border-[#0a7578]/30">
+                <div className="text-center text-[#0a7578]">
+                  <Trophy className="w-24 h-24 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Tournament Hero Image</p>
+                  <p className="text-sm opacity-75">Competition visual goes here</p>
+                </div>
+              </div>
+              {/* Floating elements */}
+              <div className="absolute -top-4 -right-4 bg-white rounded-full p-3 shadow-lg">
+                <Trophy className="w-6 h-6 text-[#b17e1e]" />
+              </div>
+              <div className="absolute -bottom-4 -left-4 bg-white rounded-full p-3 shadow-lg">
+                <Target className="w-6 h-6 text-[#0a7578]" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Tournament Stats */}
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div>
+              <div className="text-4xl md:text-5xl font-bold text-orange-600 mb-2">16</div>
+              <div className="text-muted-foreground font-medium">Competing Teams</div>
+            </div>
+            <div>
+              <div className="text-4xl md:text-5xl font-bold text-red-600 mb-2">6</div>
+              <div className="text-muted-foreground font-medium">Weeks of Competition</div>
+            </div>
+            <div>
+              <div className="text-4xl md:text-5xl font-bold text-green-600 mb-2">$4.5K</div>
+              <div className="text-muted-foreground font-medium">Total Prize Pool</div>
+            </div>
+            <div>
+              <div className="text-4xl md:text-5xl font-bold text-[#0a7578] mb-2">100+</div>
+              <div className="text-muted-foreground font-medium">Sales Required/Month</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Tournament Format Section */}
+      <section id="tournament" className="py-20 bg-gradient-to-b from-[#0a7578]/5 to-white">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 bg-[#0a7578]/10 text-[#0a7578]">
+              Tournament Format
+            </Badge>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">
+              How the{" "}
+              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
+                Competition
+              </span>{" "}
+              Works
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+              A bracket-style knockout tournament where teams compete daily for points. First to 3 points advances!
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
+            <div className="space-y-6">
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <CardHeader>
+                  <div className="w-12 h-12 bg-[#0a7578]/10 rounded-lg flex items-center justify-center mb-4">
+                    <Target className="w-6 h-6 text-[#0a7578]" />
+                  </div>
+                  <CardTitle>Daily Competition</CardTitle>
+                  <CardDescription>
+                    Each day equals 1 point. Teams compete Monday through Friday in head-to-head matchups.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <CardHeader>
+                  <div className="w-12 h-12 bg-[#b17e1e]/10 rounded-lg flex items-center justify-center mb-4">
+                    <Trophy className="w-6 h-6 text-red-600" />
+                  </div>
+                  <CardTitle>First to 3 Wins</CardTitle>
+                  <CardDescription>
+                    The first team to win 3 daily competitions advances to the next round. Lose 3 and you're eliminated.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <CardHeader>
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                    <Users className="w-6 h-6 text-green-600" />
+                  </div>
+                  <CardTitle>Knockout Style</CardTitle>
+                  <CardDescription>
+                    16 teams start, only 1 remains! Each week eliminates teams until we crown our champion.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+
+            {/* Tournament Bracket Image Space */}
+            <div className="relative">
+              <div className="aspect-[4/3] bg-gradient-to-br from-[#0a7578]/10 to-[#b17e1e]/10 rounded-2xl flex items-center justify-center border-2 border-dashed border-[#0a7578]/30">
+                <div className="text-center text-[#0a7578]">
+                  <Trophy className="w-20 h-20 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Tournament Bracket</p>
+                  <p className="text-sm opacity-75">Visual bracket diagram</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Rules Section */}
+      <section id="rules" className="py-20 bg-white">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 bg-[#b17e1e]/10 text-[#b17e1e]">
+              Competition Rules
+            </Badge>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">
+              Tournament{" "}
+              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">Rules</span>
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <Card className="border-l-4 border-l-[#0a7578] shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Calendar className="w-5 h-5 text-orange-600" />
+                  <span>Weekly Format</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>5 competitive days per week (Monday-Friday)</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Each day counts as 1 game/point</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Weekend breaks between rounds</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-[#b17e1e] shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Target className="w-5 h-5 text-red-600" />
+                  <span>Qualification Requirements</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Minimum 100 sales submissions per month</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Must qualify to be eligible for cash prizes</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Teams registered by June 9th deadline</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-green-600 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Trophy className="w-5 h-5 text-green-600" />
+                  <span>Advancement Rules</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>First team to win 3 games advances</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Lose 3 games and you're eliminated</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Knockout-style elimination</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-[#0a7578] shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Award className="w-5 h-5 text-blue-600" />
+                  <span>Winner Benefits</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Social media recognition</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Dedicated account manager for 1 month</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>Championship trophy and certificates</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Schedule Section */}
+      <section id="schedule" className="py-20 bg-gradient-to-b from-[#0a7578]/5 to-white">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 bg-[#0a7578]/10 text-[#0a7578]">
+              Tournament Schedule
+            </Badge>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">
+              Competition{" "}
+              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
+                Timeline
+              </span>
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Mark your calendars! Here's the complete schedule for the 2025 BPO Games tournament.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-start">
+            <div className="space-y-6">
+              <Card className="border-0 shadow-lg bg-gradient-to-r from-[#0b1821] to-[#0a7578] text-white">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl">Registration Deadline</CardTitle>
+                      <CardDescription className="text-red-100">Last chance to register!</CardDescription>
+                    </div>
+                    <Clock className="w-8 h-8" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">June 9th, 2025</div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-4">
+                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">Qualifying Week</CardTitle>
+                      <Badge variant="outline">Week 0</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-semibold text-[#0a7578]">June 9-13, 2025</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">Round 1</CardTitle>
+                      <Badge variant="outline">16 → 8 Teams</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-semibold text-[#0a7578]">June 16-20, 2025</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">Round 2</CardTitle>
+                      <Badge variant="outline">8 → 4 Teams</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-semibold text-[#0a7578]">June 23-27, 2025</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">Round 3</CardTitle>
+                      <Badge variant="outline">4 → 2 Teams</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-semibold text-[#0a7578]">June 30 - July 4, 2025</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">Semifinals</CardTitle>
+                      <Badge variant="outline">Final 4</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-semibold text-[#0a7578]">July 7-11, 2025</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-[#b17e1e]/5 to-[#0a7578]/5 border-2 border-[#b17e1e]/20">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <Trophy className="w-5 h-5 text-orange-600" />
+                        <span>Championship Match</span>
+                      </CardTitle>
+                      <Badge className="bg-orange-600">Final</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-semibold text-[#0a7578]">July 14, 2025</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-[#0a7578]/5 to-[#b17e1e]/5 border-2 border-[#0a7578]/20">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <Award className="w-5 h-5 text-green-600" />
+                        <span>Winner Announcement</span>
+                      </CardTitle>
+                      <Badge className="bg-green-600">Celebration</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-semibold text-green-600">July 21, 2025</div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Schedule Visual Space */}
+            <div className="relative">
+              <div className="aspect-[3/4] bg-gradient-to-br from-[#0a7578]/10 to-[#b17e1e]/10 rounded-2xl flex items-center justify-center border-2 border-dashed border-[#0a7578]/30">
+                <div className="text-center text-[#0a7578]">
+                  <Calendar className="w-20 h-20 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Tournament Calendar</p>
+                  <p className="text-sm opacity-75">Visual timeline graphic</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Prizes Section */}
+      <section id="prizes" className="py-20 bg-white">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 bg-green-100 text-green-700">
+              Prize Pool
+            </Badge>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">
+              Win Big with{" "}
+              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">$4,500</span>{" "}
+              in Prizes
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Compete for cash prizes and exclusive benefits. The top 3 teams will be rewarded for their excellence.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
+            <Card className="border-2 border-[#b17e1e]/30 shadow-xl relative bg-gradient-to-b from-[#b17e1e]/10 to-[#0a7578]/5">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <Badge className="bg-gradient-to-r from-[#b17e1e] to-[#0a7578] text-white px-4 py-2">🥇 Champion</Badge>
+              </div>
+              <CardHeader className="text-center pb-8 pt-8">
+                <Trophy className="w-16 h-16 text-[#b17e1e] mx-auto mb-4" />
+                <CardTitle className="text-2xl">1st Place</CardTitle>
+                <div className="text-5xl font-bold mt-4 text-[#b17e1e]">$3,000</div>
+                <CardDescription className="mt-2 text-lg">The Ultimate Champions</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>$3,000 cash prize</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Championship trophy</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Dedicated account manager</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Social media spotlight</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-gray-200 shadow-xl bg-gradient-to-b from-gray-50 to-slate-50">
+              <CardHeader className="text-center pb-8">
+                <Award className="w-14 h-14 text-gray-500 mx-auto mb-4" />
+                <CardTitle className="text-2xl">2nd Place</CardTitle>
+                <div className="text-4xl font-bold mt-4 text-gray-600">$1,000</div>
+                <CardDescription className="mt-2">Runner-up Excellence</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>$1,000 cash prize</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Runner-up trophy</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Social media recognition</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-amber-200 shadow-xl bg-gradient-to-b from-amber-50 to-yellow-50">
+              <CardHeader className="text-center pb-8">
+                <Star className="w-14 h-14 text-amber-500 mx-auto mb-4" />
+                <CardTitle className="text-2xl">3rd Place</CardTitle>
+                <div className="text-4xl font-bold mt-4 text-amber-600">$500</div>
+                <CardDescription className="mt-2">Bronze Medal Winners</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>$500 cash prize</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Third place trophy</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Social media recognition</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Prize Image Space */}
+          <div className="max-w-2xl mx-auto">
+            <div className="aspect-[2/1] bg-gradient-to-br from-[#b17e1e]/10 to-[#0a7578]/10 rounded-2xl flex items-center justify-center border-2 border-dashed border-[#0a7578]/30">
+              <div className="text-center text-[#0a7578]">
+                <DollarSign className="w-20 h-20 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">Prize Ceremony Image</p>
+                <p className="text-sm opacity-75">Winners celebration photo</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials/Past Winners */}
+      <section className="py-20 bg-gradient-to-b from-[#0a7578]/5 to-white">
+        <div className="container mx-auto px-4 lg:px-6">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4 bg-[#0a7578]/10 text-[#0a7578]">
+              Success Stories
+            </Badge>
+            <h2 className="text-3xl md:text-5xl font-bold mb-4">
+              What Teams Are{" "}
+              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">Saying</span>
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <div className="flex items-center space-x-4 mb-4">
+                  <Avatar>
+                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
+                    <AvatarFallback>AK</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-semibold">Ahmed Khan</div>
+                    <div className="text-sm text-muted-foreground">Team Lead, CallCenter Pro</div>
+                  </div>
+                </div>
+                <div className="flex space-x-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  "The BPO Games pushed our team to new heights! The competition format is brilliant and really brings
+                  out the best in everyone. Can't wait for 2025!"
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <div className="flex items-center space-x-4 mb-4">
+                  <Avatar>
+                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
+                    <AvatarFallback>SF</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-semibold">Sarah Fatima</div>
+                    <div className="text-sm text-muted-foreground">Manager, Elite Sales</div>
+                  </div>
+                </div>
+                <div className="flex space-x-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  "Winning 2nd place last year was incredible! The prize money helped us invest in better training. This
+                  tournament is a game-changer for BPOs."
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <div className="flex items-center space-x-4 mb-4">
+                  <Avatar>
+                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
+                    <AvatarFallback>MH</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-semibold">Muhammad Hassan</div>
+                    <div className="text-sm text-muted-foreground">CEO, TechCall Solutions</div>
+                  </div>
+                </div>
+                <div className="flex space-x-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  "The competition brought our entire company together. Even teams that didn't make it far saw huge
+                  improvements in performance and morale!"
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-gradient-to-r from-[#0b1821] to-[#0a7578]">
+        <div className="container mx-auto px-4 lg:px-6 text-center">
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Ready to Compete?</h2>
+          <p className="text-xl text-orange-100 mb-8 max-w-2xl mx-auto">
+            Registration closes June 9th! Don't miss your chance to compete for $4,500 in prizes and become Pakistan's
+            BPO champion.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+            <Button
+              size="lg"
+              variant="secondary"
+              className="text-lg px-8 py-6 bg-white text-[#0a7578] hover:bg-gray-50"
+            >
+              Register Your Team Now
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="text-lg px-8 py-6 text-white border-white hover:bg-white hover:text-[#0a7578]"
+            >
+              Download Tournament Guide
+            </Button>
+          </div>
+          <div className="text-orange-100">
+            <p className="font-semibold">
+              ⚠️ Important: Teams must achieve 100+ sales submissions per month to qualify for cash prizes
+            </p>
+          </div>
+        </div>
+      </section>
+
+      
     </div>
-  );
+  )
 }

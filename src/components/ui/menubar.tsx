@@ -43,7 +43,8 @@ const Menubar = React.forwardRef<
   <MenubarPrimitive.Root
     ref={ref}
     className={cn(
-      "flex h-10 items-center space-x-1 rounded-md border bg-background p-1",
+      // Modern landing style: glassy, shadow, rounded, gradient border, spacing
+      "flex h-16 items-center justify-between w-full px-4 lg:px-6 bg-white/90 border-b border-gray-200 shadow-md backdrop-blur-md z-50 rounded-b-2xl",
       className
     )}
     {...props}
@@ -58,7 +59,8 @@ const MenubarTrigger = React.forwardRef<
   <MenubarPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex cursor-default select-none items-center rounded-sm px-3 py-1.5 text-sm font-medium outline-none focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+      // Modern landing style: bold, gradient text, hover effect, spacing
+      "flex cursor-pointer select-none items-center rounded-lg px-4 py-2 text-base font-semibold bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent transition-colors duration-200 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-[#0a7578]/40",
       className
     )}
     {...props}
@@ -117,7 +119,8 @@ const MenubarContent = React.forwardRef<
         alignOffset={alignOffset}
         sideOffset={sideOffset}
         className={cn(
-          "z-50 min-w-[12rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          // Modern landing style: glassy, shadow, rounded, border, popover
+          "z-50 min-w-[12rem] overflow-hidden rounded-xl border border-[#0a7578]/20 bg-white/95 p-2 text-popover-foreground shadow-xl backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           className
         )}
         {...props}
@@ -136,7 +139,8 @@ const MenubarItem = React.forwardRef<
   <MenubarPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      // Modern landing style: rounded, bold, gradient text, hover effect, spacing
+      "relative flex cursor-pointer select-none items-center rounded-lg px-4 py-2 text-base font-medium bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent transition-colors duration-200 hover:text-orange-600 focus:outline-none focus:ring-2 focus:ring-[#0a7578]/40",
       inset && "pl-8",
       className
     )}
@@ -199,7 +203,8 @@ const MenubarLabel = React.forwardRef<
   <MenubarPrimitive.Label
     ref={ref}
     className={cn(
-      "px-2 py-1.5 text-sm font-semibold",
+      // Modern landing style: uppercase, tracking, muted color, spacing
+      "px-4 py-2 text-xs font-bold uppercase tracking-widest text-[#0a7578] opacity-80",
       inset && "pl-8",
       className
     )}
@@ -214,7 +219,7 @@ const MenubarSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <MenubarPrimitive.Separator
     ref={ref}
-    className={cn("-mx-1 my-1 h-px bg-muted", className)}
+    className={cn("-mx-1 my-1 h-px bg-gradient-to-r from-[#0a7578]/30 via-[#b17e1e]/30 to-[#0a7578]/30", className)}
     {...props}
   />
 ))

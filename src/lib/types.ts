@@ -1,4 +1,3 @@
-
 import type { DateRange } from "react-day-picker";
 
 // Represents a team as understood from Firestore structure primarily by name
@@ -6,6 +5,8 @@ export interface Team {
   name: string; // Team name is the primary identifier from Apps Script
   logo?: string; // URL to team logo placeholder
   dailyWinsInMatchup?: number; // How many daily wins this team has in the current matchup
+  wins?: number; // Total wins for the team
+  losses?: number; // Total losses for the team
 }
 
 // Represents a matchup as stored in Firestore under tournaments/{tournamentId}/rounds/{roundNum}/matches/{matchId}
