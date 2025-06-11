@@ -26,6 +26,31 @@ import {
   MenubarShortcut
 } from "@/components/ui/menubar";
 
+// Map legacy team names to real team names
+const TEAM_NAME_MAP: Record<string, string> = {
+  "Team 1": "Rawlpindi Tiger",
+  "Team 2": "Lahore qalanders",
+  "Team 3": "Islamabad United",
+  "Team 4": "Timberwolfs",
+  "Team 5": "Rawlpindi Express",
+  "Team 6": "Rawlpindi Gladiators",
+  "Team 7": "Peshawar Zalmi",
+  "Team 8": "Multan Sultans",
+  "Team 9": "Avengers",
+  "Team 10": "Hustlers",
+  "Team 11": "A-Team",
+  "Team 12": "Rawlpindi Bears",
+  "Team 13": "Alpha's",
+  "Team 14": "Vipers",
+  "Team 15": "Karachi Kings",
+  "Team 16": "Islamabad Sneak",
+};
+
+function getDisplayTeamName(teamName?: string) {
+  if (!teamName) return undefined;
+  return TEAM_NAME_MAP[teamName] || teamName;
+}
+
 export default function Header() {
   const { user, logout, isAuthenticated } = useAuth();
   const pathname = usePathname();
@@ -103,7 +128,7 @@ export default function Header() {
               Welcome, <span className="font-medium text-[#0a7578]">{user.username}</span>
               {user.role === 'admin' && <span className="text-xs text-[#b17e1e] ml-1">(Admin)</span>}
               {user.role === 'teamMember' && user.teamNameForFilter && (
-                <span className="text-xs text-[#b17e1e] ml-1">({user.teamNameForFilter})</span>
+                <span className="text-xs text-[#b17e1e] ml-1">({getDisplayTeamName(user.teamNameForFilter)})</span>
               )}
             </span>
           )}
@@ -141,7 +166,7 @@ export default function Header() {
                 Welcome, <span className="font-medium text-[#0a7578]">{user.username}</span>
                 {user.role === 'admin' && <span className="text-xs text-[#b17e1e] ml-1">(Admin)</span>}
                 {user.role === 'teamMember' && user.teamNameForFilter && (
-                  <span className="text-xs text-[#b17e1e] ml-1">({user.teamNameForFilter})</span>
+                  <span className="text-xs text-[#b17e1e] ml-1">({getDisplayTeamName(user.teamNameForFilter)})</span>
                 )}
               </span>
             )}

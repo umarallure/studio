@@ -55,8 +55,35 @@ import {
   fetchStatusDistribution,
   fetchTournamentMetrics,
 } from "@/lib/api"
+import { useAuth } from "@/hooks/useAuth"
+
+// Map legacy team names to real team names
+const TEAM_NAME_MAP: Record<string, string> = {
+  "Team 1": "Rawlpindi Tiger",
+  "Team 2": "Lahore qalanders",
+  "Team 3": "Islamabad United",
+  "Team 4": "Timberwolfs",
+  "Team 5": "Rawlpindi Express",
+  "Team 6": "Rawlpindi Gladiators",
+  "Team 7": "Peshawar Zalmi",
+  "Team 8": "Multan Sultans",
+  "Team 9": "Avengers",
+  "Team 10": "Hustlers",
+  "Team 11": "A-Team",
+  "Team 12": "Rawlpindi Bears",
+  "Team 13": "Alpha's",
+  "Team 14": "Vipers",
+  "Team 15": "Karachi Kings",
+  "Team 16": "Islamabad Sneak",
+};
+
+function getDisplayTeamName(teamName?: string) {
+  if (!teamName) return undefined;
+  return TEAM_NAME_MAP[teamName] || teamName;
+}
 
 export default function Dashboard() {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true)
   const [selectedView, setSelectedView] = useState("overview")
   const [selectedTeam, setSelectedTeam] = useState("all")
@@ -100,7 +127,10 @@ export default function Dashboard() {
         const [teams, matches, performanceData, topPerformers, statusDistribution, metrics] = await Promise.all([
           fetchTournamentTeams(),
           fetchTournamentMatches(),
-          fetchPerformanceData(),
+          // Only fetch team data for logged-in user if teamMember
+          user?.role === 'teamMember' && user.teamNameForFilter
+            ? fetchPerformanceData(user.teamNameForFilter)
+            : fetchPerformanceData("all"),
           fetchTopPerformers(),
           fetchStatusDistribution(),
           fetchTournamentMetrics(),
@@ -115,8 +145,8 @@ export default function Dashboard() {
         setIsLoading(false)
       }
     }
-    fetchData()
-  }, [])
+    if (!isAuthLoading) fetchData()
+  }, [user, isAuthLoading])
 
   if (isLoading) {
     return (
@@ -135,7 +165,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 px-4 md:px-8 lg:px-16 py-6">
       {/* Dashboard Header */}
       <Card className="shadow sticky top-[calc(theme(spacing.16)_+_1px)] md:top-[calc(theme(spacing.16)_+_1px)] z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <CardContent className="p-4 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -151,7 +181,7 @@ export default function Dashboard() {
                 <SelectItem value="all">All Teams</SelectItem>
                 {teams.map((team: any) => (
                   <SelectItem key={team.name} value={team.name}>
-                    {team.name}
+                    {getDisplayTeamName(team.name)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -166,7 +196,7 @@ export default function Dashboard() {
 
       {/* View Selection Tabs */}
       <Tabs defaultValue="overview" value={selectedView} onValueChange={setSelectedView} className="w-full">
-        <TabsList className="grid grid-cols-3 md:grid-cols-5 w-full">
+        <TabsList className="grid grid-cols-3 md:grid-cols-4 w-full">
           <TabsTrigger
             value="overview"
             className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#0a7578]/10 data-[state=active]:to-[#b17e1e]/10 data-[state=active]:text-[#0a7578]"
@@ -195,13 +225,7 @@ export default function Dashboard() {
             <TrendingUp className="h-4 w-4 mr-2" />
             Performance
           </TabsTrigger>
-          <TabsTrigger
-            value="agents"
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#0a7578]/10 data-[state=active]:to-[#b17e1e]/10 data-[state=active]:text-[#0a7578]"
-          >
-            <Award className="h-4 w-4 mr-2" />
-            Top Agents
-          </TabsTrigger>
+          
         </TabsList>
 
         {/* Overview Tab Content */}
@@ -233,9 +257,13 @@ export default function Dashboard() {
             />
             <MetricCard
               title="Top Agent"
-              value={topPerformers[0]?.name ?? "N/A"}
+              value={topPerformers.length > 0 ? topPerformers[0].name : "No data"}
               icon={Award}
-              description={`${topPerformers[0]?.submissions ?? 0} submissions`}
+              description={
+                topPerformers.length > 0
+                  ? `${topPerformers[0].submissions} submissions, ${topPerformers[0].winRate}% win rate`
+                  : "No agent data for this team"
+              }
             />
           </div>
 
@@ -399,51 +427,45 @@ export default function Dashboard() {
                   <BarChart3 className="mr-2 h-6 w-6 text-[#b17e1e]" /> Entry Status Distribution
                 </h2>
                 <ul className="text-sm space-y-1 text-muted-foreground">
-                  <li>
-                    • Submitted:{" "}
-                    <strong className="text-foreground">{statusDistribution[0]?.value ?? 0}%</strong>
-                  </li>
-                  <li>
-                    • In Progress:{" "}
-                    <strong className="text-foreground">{statusDistribution[1]?.value ?? 0}%</strong>
-                  </li>
-                  <li>
-                    • Completed:{" "}
-                    <strong className="text-foreground">{statusDistribution[2]?.value ?? 0}%</strong>
-                  </li>
-                  <li>
-                    • Rejected:{" "}
-                    <strong className="text-foreground">{statusDistribution[3]?.value ?? 0}%</strong>
-                  </li>
+                  {statusDistribution.filter(s => s.value > 0).map((status) => (
+                    <li key={status.name} style={{ color: status.color, fontWeight: 600 }}>
+                      • {status.name}: <span style={{ color: 'inherit', fontWeight: 700 }}>{status.value}%</span>
+                    </li>
+                  ))}
                 </ul>
-
                 <div className="text-center mt-6">
                   <h3 className="text-lg font-semibold text-foreground mb-4">Status Breakdown</h3>
-                  <div className="flex justify-center items-center">
-                    <ResponsiveContainer width="100%" height={180}>
+                  <div className="flex flex-col items-center">
+                    <ResponsiveContainer width={280} height={180}>
                       <PieChart>
                         <Pie
-                          data={statusDistribution}
+                          data={statusDistribution.filter(s => s.value > 0)}
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          outerRadius={80}
-                          fill="#8884d8"
+                          outerRadius={70}
                           dataKey="value"
+                          nameKey="name"
                         >
-                          {statusDistribution.map((entry: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          {statusDistribution.filter(s => s.value > 0).map((entry, idx) => (
+                            <Cell key={`cell-${entry.name}`} fill={entry.color} />
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(value) => [`${value}%`, ""]}
+                          formatter={(value, name) => [`${value}%`, name]}
                           contentStyle={{
                             backgroundColor: "hsl(var(--popover))",
                             borderColor: "hsl(var(--border))",
                             borderRadius: "var(--radius)",
                           }}
                         />
-                        <Legend />
+                        <Legend
+                          layout="horizontal"
+                          align="center"
+                          verticalAlign="bottom"
+                          iconType="circle"
+                          wrapperStyle={{ fontSize: 13, marginTop: 10 }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -900,109 +922,8 @@ export default function Dashboard() {
           </Card>
         </TabsContent>
 
-        {/* Top Agents Tab Content */}
-        <TabsContent value="agents" className="space-y-6 pt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Award className="mr-2 h-5 w-5 text-[#b17e1e]" />
-                Top Performing Agents
-              </CardTitle>
-              <CardDescription>Agents with the highest submission counts</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <div className="grid grid-cols-5 bg-muted/50 p-3 text-sm font-medium">
-                  <div>Rank</div>
-                  <div className="col-span-2">Agent</div>
-                  <div>Team</div>
-                  <div>Submissions</div>
-                </div>
-                <div className="divide-y">
-                  {topPerformers.map((agent, index) => (
-                    <div key={agent.name} className="grid grid-cols-5 p-3 text-sm items-center">
-                      <div className="font-medium">{index + 1}</div>
-                      <div className="col-span-2 font-medium">{agent.name}</div>
-                      <div>{agent.team}</div>
-                      <div>
-                        <Badge
-                          className={
-                            index === 0
-                              ? "bg-[#0a7578] text-white"
-                              : index === 1
-                                ? "bg-[#b17e1e] text-white"
-                                : "bg-muted text-muted-foreground"
-                          }
-                        >
-                          {agent.submissions}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <BarChart3 className="mr-2 h-5 w-5 text-[#0a7578]" />
-                  Agent Performance
-                </CardTitle>
-                <CardDescription>Submission counts by top agents</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={topPerformers}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--popover))",
-                        borderColor: "hsl(var(--border))",
-                        borderRadius: "var(--radius)",
-                      }}
-                    />
-                    <Bar dataKey="submissions" name="Submissions" fill="#0a7578" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Target className="mr-2 h-5 w-5 text-[#b17e1e]" />
-                  Win Rate by Agent
-                </CardTitle>
-                <CardDescription>Success rate of top performing agents</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {topPerformers.map((agent) => (
-                    <div key={agent.name} className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">{agent.name}</span>
-                        <span className="text-muted-foreground">{agent.winRate}% Win Rate</span>
-                      </div>
-                      <div className="bg-muted rounded-full h-2">
-                        <div
-                          className={`rounded-full h-2 ${
-                            agent.winRate > 85 ? "bg-green-500" : agent.winRate > 80 ? "bg-[#0a7578]" : "bg-[#b17e1e]"
-                          }`}
-                          style={{ width: `${agent.winRate}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+        
+       
       </Tabs>
     </div>
   )

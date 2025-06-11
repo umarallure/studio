@@ -11,7 +11,7 @@ import { collection, onSnapshot, query, orderBy, limit, getDocs, where } from "f
 import { mapFirestoreDocToMatchup, mapDocToTournamentSettings } from "@/lib/tournament-config"
 import type { Matchup as MatchupType, TournamentSettings } from "@/lib/types"
 import SeriesDetailPopup from "@/components/bracket/SeriesDetailPopup"
-import { Loader2, AlertTriangle, Info, Trophy, Calendar, Users, Target, Crown, Star } from "lucide-react"
+import { Loader2, AlertTriangle, Info, Trophy, Calendar, Users, Target, Star } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { format as formatDate, addDays, isValid as isValidDate } from "date-fns"
 
@@ -35,26 +35,26 @@ const getRoundTitle = (roundIndex: number, teamCount: number | undefined): strin
   if (teamCount === 16) {
     switch (roundIndex) {
       case 0:
-        return "ROUND 1\nJUNE 16TH-20TH"
+        return "ROUND 1"
       case 1:
         return "ROUND 2\nJUNE 23RD-27TH"
       case 2:
         return "ROUND 3\nJUNE 30TH-JULY 4TH"
       case 3:
-        return "CHAMPIONSHIP\nTOURNAMENT\nJULY 14TH"
+        return "CHAMPIONSHIP Match\nTOURNAMENT\nJULY 14TH"
       case 4:
         return "ROUND 3\nJUNE 30TH-JULY 4TH"
       case 5:
         return "ROUND 2\nJUNE 23RD-27TH"
       case 6:
-        return "ROUND 1\nJUNE 16TH-20TH"
+        return "ROUND 1"
       default:
         return `Round ${roundIndex + 1}`
     }
   } else if (teamCount === 8) {
     switch (roundIndex) {
       case 0:
-        return "ROUND 1\nJUNE 16TH-20TH"
+        return "ROUND 1"
       case 1:
         return "SEMIFINALS\nJULY 7TH-11TH"
       case 2:
@@ -62,7 +62,7 @@ const getRoundTitle = (roundIndex: number, teamCount: number | undefined): strin
       case 3:
         return "SEMIFINALS\nJULY 7TH-11TH"
       case 4:
-        return "ROUND 1\nJUNE 16TH-20TH"
+        return "ROUND 1"
       default:
         return `Round ${roundIndex + 1}`
     }
@@ -116,6 +116,31 @@ const getInferredMatch = (
     inferred.team2Name = w2Name
   }
   return inferred
+}
+
+// Map legacy team names to real team names
+const TEAM_NAME_MAP: Record<string, string> = {
+  "Team 1": "Rawlpindi Tiger",
+  "Team 2": "Lahore qalanders",
+  "Team 3": "Islamabad United",
+  "Team 4": "Timberwolfs",
+  "Team 5": "Rawlpindi Express",
+  "Team 6": "Rawlpindi Gladiators",
+  "Team 7": "Peshawar Zalmi",
+  "Team 8": "Multan Sultans",
+  "Team 9": "Avengers",
+  "Team 10": "Hustlers",
+  "Team 11": "A-Team",
+  "Team 12": "Rawlpindi Bears",
+  "Team 13": "Alpha's",
+  "Team 14": "Vipers",
+  "Team 15": "Karachi Kings",
+  "Team 16": "Islamabad Sneak",
+};
+
+function getDisplayTeamName(teamName?: string | null) {
+  if (!teamName) return undefined;
+  return TEAM_NAME_MAP[teamName] || teamName;
 }
 
 export default function AdvancedTournamentBracket() {
@@ -745,10 +770,7 @@ export default function AdvancedTournamentBracket() {
     rightPathRounds = dynamicDisplayRounds.slice(3)
   }
 
-  let championshipPaddingTop = "pt-[calc(3*6rem+1.5rem)]"
-  if (activeTournament.teamCount === 8) {
-    championshipPaddingTop = "pt-[calc(1*6rem+1.5rem)]"
-  }
+  // Remove excessive padding calculations - let flexbox handle alignment
 
   return (
     <div className="space-y-8">
@@ -800,10 +822,11 @@ export default function AdvancedTournamentBracket() {
       {/* Bracket */}
       <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-2 sm:p-4 md:p-8 shadow-xl border border-slate-200">
         <div className="overflow-x-auto">
-          <div className="w-full min-w-[350px] sm:min-w-[900px] md:min-w-[1400px] lg:min-w-[1800px] xl:min-w-[2200px] max-w-full mx-auto">
-            <div className="flex flex-col md:flex-row justify-center items-start gap-4 md:gap-8">
+          <div className="min-w-[1200px] p-4">
+            <div className="flex">
+              {/* Left side of the bracket */}
               {leftPathRounds.length > 0 && (
-                <div className="flex-initial">
+                <div className="flex-1">
                   <Bracket
                     rounds={leftPathRounds}
                     renderSeedComponent={(props: any) => (
@@ -814,14 +837,15 @@ export default function AdvancedTournamentBracket() {
                 </div>
               )}
 
+              {/* Championship */}
               {championshipRound.length > 0 && (
-                <div className={`flex-initial ${championshipPaddingTop}`}>
+                <div className="flex-none" style={{ width: "220px" }}>
                   {/* Championship Section */}
-                  <div className="flex flex-col items-center mb-6">
-                    <div className="bg-gradient-to-r from-[#0a7578] to-[#0b1821] rounded-2xl px-4 md:px-6 py-2 md:py-3 shadow-lg border-2 border-[#b17e1e]">
+                  <div className="flex flex-col items-center mb-4">
+                    <div className="bg-gradient-to-r from-[#0a7578] to-[#0b1821] rounded-xl px-3 py-1.5 shadow-lg border border-[#b17e1e]">
                       <div className="text-center text-white">
                         <div className="text-xs font-bold tracking-wider text-[#b17e1e]">NATIONAL</div>
-                        <div className="text-lg font-black">CHAMPION</div>
+                        <div className="text-sm font-black">CHAMPION</div>
                       </div>
                     </div>
                   </div>
@@ -836,8 +860,9 @@ export default function AdvancedTournamentBracket() {
                 </div>
               )}
 
+              {/* Right side of the bracket (mirrored) */}
               {rightPathRounds.length > 0 && (
-                <div className="flex-initial">
+                <div className="flex-1">
                   <div className="mirror-bracket">
                     <Bracket
                       rounds={rightPathRounds}
@@ -866,6 +891,20 @@ export default function AdvancedTournamentBracket() {
           tournamentStartDate={activeTournament.startDate}
         />
       )}
+
+      <style jsx global>{`
+        .mirror-bracket .react-brackets-round {
+          flex-direction: column-reverse;
+        }
+        
+        .mirror-bracket .react-brackets-bracket {
+          transform: scaleX(-1);
+        }
+        
+        .mirror-bracket .react-brackets-seed-item {
+          transform: scaleX(-1);
+        }
+      `}</style>
     </div>
   )
 }
@@ -882,11 +921,11 @@ function TournamentRoundTitle(title: ReactNode, roundIndex: number) {
       </div>
     )
   }
-  const lines = String(title || "").split("\n").filter(Boolean)
+  const lines = String(title || "")
+    .split("\n")
+    .filter(Boolean)
 
-  // Debug logs for troubleshooting round title rendering
-  console.log("[TournamentRoundTitle] Raw title prop:", title)
-  console.log("[TournamentRoundTitle] Lines after split:", lines)
+  
 
   // Try to extract round number from the first line
   let roundNumberLabel = null
@@ -985,7 +1024,7 @@ function TournamentMatchBox({
             {/* Match Status */}
             {seriesWinnerName && (
               <div className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] text-white text-xs font-bold py-1 px-3 text-center rounded-b-md">
-                Winner: {seriesWinnerName}
+                Winner: {getDisplayTeamName(seriesWinnerName)}
               </div>
             )}
 
@@ -1038,7 +1077,7 @@ function TournamentTeamSlot({
       <div className="flex items-center gap-2">
         {isWinner && <Star className="w-3 h-3 text-[#b17e1e] fill-current" />}
         <span className="text-sm font-medium truncate max-w-[120px]" title={team.name}>
-          {team.name}
+          {getDisplayTeamName(team.name)}
         </span>
       </div>
       {team.score !== undefined && (

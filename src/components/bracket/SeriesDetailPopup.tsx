@@ -58,6 +58,31 @@ interface DailyStatDisplayData {
   dailyWinner: string | null;
 }
 
+// Map legacy team names to real team names
+const TEAM_NAME_MAP: Record<string, string> = {
+  "Team 1": "Rawlpindi Tiger",
+  "Team 2": "Lahore qalanders",
+  "Team 3": "Islamabad United",
+  "Team 4": "Timberwolfs",
+  "Team 5": "Rawlpindi Express",
+  "Team 6": "Rawlpindi Gladiators",
+  "Team 7": "Peshawar Zalmi",
+  "Team 8": "Multan Sultans",
+  "Team 9": "Avengers",
+  "Team 10": "Hustlers",
+  "Team 11": "A-Team",
+  "Team 12": "Rawlpindi Bears",
+  "Team 13": "Alpha's",
+  "Team 14": "Vipers",
+  "Team 15": "Karachi Kings",
+  "Team 16": "Islamabad Sneak",
+};
+
+function getDisplayTeamName(teamName?: string | null) {
+  if (!teamName) return undefined;
+  return TEAM_NAME_MAP[teamName] || teamName;
+}
+
 const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
   isOpen,
   onOpenChange,
@@ -213,11 +238,11 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
     // Calculate lead difference for winner statement
     const leadDifference = Math.abs(day.team1Stats.submittedEntries - day.team2Stats.submittedEntries);
     const winnerStatement = day.dailyWinner ? 
-      `${day.dailyWinner} won by ${leadDifference} ${leadDifference === 1 ? 'submission' : 'submissions'}` : 
+      `${getDisplayTeamName(day.dailyWinner)} won by ${leadDifference} ${leadDifference === 1 ? 'submission' : 'submissions'}` : 
       'No winner determined';
 
     return (
-      <Card className="shadow-md border-border/70">
+      <Card className="shadow-md border-border/70" style={{ backgroundColor: '#fff9ec' }}>
         <CardHeader className="p-3 bg-muted/30 rounded-t-md">
           <CardTitle className="text-center text-sm font-semibold text-muted-foreground">{day.date}</CardTitle>
         </CardHeader>
@@ -231,7 +256,7 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-semibold text-sm flex items-center gap-2">
-                {day.team1Name}
+                {getDisplayTeamName(day.team1Name)}
                 <span className="text-muted-foreground font-normal">
                   ({day.team1Stats.totalEntries} entries)
                 </span>
@@ -279,7 +304,7 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <h3 className="font-semibold text-sm flex items-center gap-2">
-                {day.team2Name}
+                {getDisplayTeamName(day.team2Name)}
                 <span className="text-muted-foreground font-normal">
                   ({day.team2Stats.totalEntries} entries)
                 </span>
@@ -348,14 +373,15 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
       <DialogContent className="max-w-4xl w-[90vw] min-h-[60vh] max-h-[85vh] flex flex-col bg-card p-0">
         <button 
           onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+          className="absolute right-4 top-4 rounded-sm opacity-90 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
+          style={{ background: 'none', border: 'none' }}
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4 text-red-500" />
           <span className="sr-only">Close</span>
         </button>
         <DialogHeader className="p-6 border-b flex-shrink-0 bg-card/50 backdrop-blur sticky top-0 z-10">
           <DialogTitle className="text-xl text-primary font-headline">
-            Series Details: {team1Name || "Team 1"} vs {team2Name || "Team 2"}
+            Series Details: {getDisplayTeamName(team1Name) || "Team 1"} vs {getDisplayTeamName(team2Name) || "Team 2"}
           </DialogTitle>
           <DialogDescription className="text-base">
             Daily submission counts for this match-up (Round {roundId}).

@@ -69,13 +69,13 @@ export default function BPOGamesLanding() {
 
             {/* Hero Image Space */}
             <div className="relative">
-              <div className="aspect-square bg-gradient-to-br from-[#0a7578]/10 to-[#b17e1e]/10 rounded-3xl flex items-center justify-center border-2 border-dashed border-[#0a7578]/30">
-                <div className="text-center text-[#0a7578]">
-                  <Trophy className="w-24 h-24 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">Tournament Hero Image</p>
-                  <p className="text-sm opacity-75">Competition visual goes here</p>
-                </div>
-              </div>
+              <img
+                src="/landing/hero.jpg"
+                alt="BPO Games Hero"
+                width={600}
+                height={600}
+                className="rounded-3xl shadow-lg object-cover w-full h-auto aspect-square"
+              />
               {/* Floating elements */}
               <div className="absolute -top-4 -right-4 bg-white rounded-full p-3 shadow-lg">
                 <Trophy className="w-6 h-6 text-[#b17e1e]" />
@@ -172,13 +172,13 @@ export default function BPOGamesLanding() {
 
             {/* Tournament Bracket Image Space */}
             <div className="relative">
-              <div className="aspect-[4/3] bg-gradient-to-br from-[#0a7578]/10 to-[#b17e1e]/10 rounded-2xl flex items-center justify-center border-2 border-dashed border-[#0a7578]/30">
-                <div className="text-center text-[#0a7578]">
-                  <Trophy className="w-20 h-20 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">Tournament Bracket</p>
-                  <p className="text-sm opacity-75">Visual bracket diagram</p>
-                </div>
-              </div>
+              <img
+                src="/landing/bracket.png"
+                alt="Tournament Bracket"
+                width={800}
+                height={600}
+                className="rounded-2xl shadow-lg object-cover w-full h-auto aspect-[4/3] border-2 border-dashed border-[#0a7578]/30"
+              />
             </div>
           </div>
         </div>
@@ -197,7 +197,7 @@ export default function BPOGamesLanding() {
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 w-1/2 mx-auto text-center">
             <Card className="border-l-4 border-l-[#0a7578] shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -295,145 +295,139 @@ export default function BPOGamesLanding() {
 
       {/* Schedule Section */}
       <section id="schedule" className="py-20 bg-gradient-to-b from-[#0a7578]/5 to-white">
-        <div className="container mx-auto px-4 lg:px-6">
-          <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4 bg-[#0a7578]/10 text-[#0a7578]">
-              Tournament Schedule
-            </Badge>
-            <h2 className="text-3xl md:text-5xl font-bold mb-4">
-              Competition{" "}
-              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
-                Timeline
-              </span>
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Mark your calendars! Here's the complete schedule for the 2025 BPO Games tournament.
-            </p>
-          </div>
+  <div className="container mx-auto px-4 lg:px-6">
+    <div className="text-center mb-16">
+      <Badge variant="secondary" className="mb-4 bg-[#0a7578]/10 text-[#0a7578]">
+        Tournament Schedule
+      </Badge>
+      <h2 className="text-3xl md:text-5xl font-bold mb-4">
+        Competition{" "}
+        <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
+          Timeline
+        </span>
+      </h2>
+      <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+        Mark your calendars! Here's the complete schedule for the 2025 BPO Games tournament.
+      </p>
+    </div>
 
-          <div className="grid lg:grid-cols-2 gap-12 items-start">
-            <div className="space-y-6">
-              <Card className="border-0 shadow-lg bg-gradient-to-r from-[#0b1821] to-[#0a7578] text-white">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-xl">Registration Deadline</CardTitle>
-                      <CardDescription className="text-red-100">Last chance to register!</CardDescription>
-                    </div>
-                    <Clock className="w-8 h-8" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">June 9th, 2025</div>
-                </CardContent>
-              </Card>
-
-              <div className="space-y-4">
-                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Qualifying Week</CardTitle>
-                      <Badge variant="outline">Week 0</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-semibold text-[#0a7578]">June 9-13, 2025</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Round 1</CardTitle>
-                      <Badge variant="outline">16 → 8 Teams</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-semibold text-[#0a7578]">June 16-20, 2025</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Round 2</CardTitle>
-                      <Badge variant="outline">8 → 4 Teams</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-semibold text-[#0a7578]">June 23-27, 2025</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Round 3</CardTitle>
-                      <Badge variant="outline">4 → 2 Teams</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-semibold text-[#0a7578]">June 30 - July 4, 2025</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Semifinals</CardTitle>
-                      <Badge variant="outline">Final 4</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-semibold text-[#0a7578]">July 7-11, 2025</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-[#b17e1e]/5 to-[#0a7578]/5 border-2 border-[#b17e1e]/20">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg flex items-center space-x-2">
-                        <Trophy className="w-5 h-5 text-orange-600" />
-                        <span>Championship Match</span>
-                      </CardTitle>
-                      <Badge className="bg-orange-600">Final</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-semibold text-[#0a7578]">July 14, 2025</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-[#0a7578]/5 to-[#b17e1e]/5 border-2 border-[#0a7578]/20">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg flex items-center space-x-2">
-                        <Award className="w-5 h-5 text-green-600" />
-                        <span>Winner Announcement</span>
-                      </CardTitle>
-                      <Badge className="bg-green-600">Celebration</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-lg font-semibold text-green-600">July 21, 2025</div>
-                  </CardContent>
-                </Card>
-              </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 justify-center items-start">
+      {/* Registration Deadline */}
+      <Card className="w-full max-w-sm border-0 shadow-lg bg-gradient-to-r from-[#0b1821] to-[#0a7578] text-white">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">Registration Deadline</CardTitle>
+              <CardDescription className="text-red-100">Last chance to register!</CardDescription>
             </div>
-
-            {/* Schedule Visual Space */}
-            <div className="relative">
-              <div className="aspect-[3/4] bg-gradient-to-br from-[#0a7578]/10 to-[#b17e1e]/10 rounded-2xl flex items-center justify-center border-2 border-dashed border-[#0a7578]/30">
-                <div className="text-center text-[#0a7578]">
-                  <Calendar className="w-20 h-20 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">Tournament Calendar</p>
-                  <p className="text-sm opacity-75">Visual timeline graphic</p>
-                </div>
-              </div>
-            </div>
+            <Clock className="w-8 h-8" />
           </div>
-        </div>
-      </section>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-center">June 9th, 2025</div>
+        </CardContent>
+      </Card>
+
+      {/* Qualifying Week */}
+      <Card className="w-full max-w-sm border-0 shadow-lg hover:shadow-xl transition-shadow">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Qualifying Week</CardTitle>
+            <Badge variant="outline">Week 0</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">June 9-13, 2025</div>
+        </CardContent>
+      </Card>
+
+      {/* Round 1 */}
+      <Card className="w-full max-w-sm border-0 shadow-lg hover:shadow-xl transition-shadow">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Round 1</CardTitle>
+            <Badge variant="outline">16 → 8 Teams</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">June 16-20, 2025</div>
+        </CardContent>
+      </Card>
+
+      {/* Round 2 */}
+      <Card className="w-full max-w-sm border-0 shadow-lg hover:shadow-xl transition-shadow">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Round 2</CardTitle>
+            <Badge variant="outline">8 → 4 Teams</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">June 23-27, 2025</div>
+        </CardContent>
+      </Card>
+
+      {/* Round 3 */}
+      <Card className="w-full max-w-sm border-0 shadow-lg hover:shadow-xl transition-shadow">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Round 3</CardTitle>
+            <Badge variant="outline">4 → 2 Teams</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">June 30 - July 4, 2025</div>
+        </CardContent>
+      </Card>
+
+      {/* Semifinals */}
+      <Card className="w-full max-w-sm border-0 shadow-lg hover:shadow-xl transition-shadow">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Semifinals</CardTitle>
+            <Badge variant="outline">Final 4</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">July 7-11, 2025</div>
+        </CardContent>
+      </Card>
+
+      {/* Championship Match */}
+      <Card className="w-full max-w-sm shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-[#b17e1e]/5 to-[#0a7578]/5 border-2 border-[#b17e1e]/20">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center space-x-2">
+              <Trophy className="w-5 h-5 text-orange-600" />
+              <span>Championship Match</span>
+            </CardTitle>
+            <Badge className="bg-orange-600">Final</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">July 14, 2025</div>
+        </CardContent>
+      </Card>
+
+      {/* Winner Announcement */}
+      <Card className="w-full max-w-sm shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-[#0a7578]/5 to-[#b17e1e]/5 border-2 border-[#0a7578]/20">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center space-x-2">
+              <Award className="w-5 h-5 text-green-600" />
+              <span>Winner Announcement</span>
+            </CardTitle>
+            <Badge className="bg-green-600">Celebration</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-lg font-semibold text-green-600 text-center">July 21, 2025</div>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+</section>
+
 
       {/* Prizes Section */}
       <section id="prizes" className="py-20 bg-white">
@@ -532,13 +526,13 @@ export default function BPOGamesLanding() {
 
           {/* Prize Image Space */}
           <div className="max-w-2xl mx-auto">
-            <div className="aspect-[2/1] bg-gradient-to-br from-[#b17e1e]/10 to-[#0a7578]/10 rounded-2xl flex items-center justify-center border-2 border-dashed border-[#0a7578]/30">
-              <div className="text-center text-[#0a7578]">
-                <DollarSign className="w-20 h-20 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">Prize Ceremony Image</p>
-                <p className="text-sm opacity-75">Winners celebration photo</p>
-              </div>
-            </div>
+            <img
+              src="/landing/prizes.jpg"
+              alt="Prize Ceremony"
+              width={800}
+              height={400}
+              className="rounded-2xl shadow-lg object-cover w-full h-auto aspect-[2/1] border-2 border-dashed border-[#0a7578]/30"
+            />
           </div>
         </div>
       </section>
@@ -561,7 +555,7 @@ export default function BPOGamesLanding() {
               <CardHeader>
                 <div className="flex items-center space-x-4 mb-4">
                   <Avatar>
-                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
+                    <AvatarImage src="/landing/testimonial1.jpg" width={80} height={80} />
                     <AvatarFallback>AK</AvatarFallback>
                   </Avatar>
                   <div>
@@ -587,7 +581,7 @@ export default function BPOGamesLanding() {
               <CardHeader>
                 <div className="flex items-center space-x-4 mb-4">
                   <Avatar>
-                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
+                    <AvatarImage src="/landing/testimonial2.jpg" width={80} height={80} />
                     <AvatarFallback>SF</AvatarFallback>
                   </Avatar>
                   <div>
@@ -613,7 +607,7 @@ export default function BPOGamesLanding() {
               <CardHeader>
                 <div className="flex items-center space-x-4 mb-4">
                   <Avatar>
-                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
+                    <AvatarImage src="/landing/testimonial3.jpg" width={80} height={80} />
                     <AvatarFallback>MH</AvatarFallback>
                   </Avatar>
                   <div>

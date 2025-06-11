@@ -102,7 +102,7 @@ export default function CreateTournamentPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 px-4 md:px-8 lg:px-16 py-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-card rounded-lg shadow">
         <h1 className="font-headline text-3xl md:text-4xl font-bold text-primary flex items-center">
           <PlusSquare className="mr-3 h-8 w-8" /> Create New Tournament

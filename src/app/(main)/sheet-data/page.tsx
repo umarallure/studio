@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -24,6 +23,45 @@ import { cn } from '@/lib/utils';
 const SHEET_DATA_COLLECTION_PATH = "Sheet1Rows";
 const ITEMS_PER_PAGE = 20;
 const ALL_STATUSES_VALUE = "__ALL_STATUSES__";
+
+const ALL_STATUSES = [
+  "Submitted",
+  "DQ",
+  "Needs Call Back",
+  "Call Back Fix",
+  "Not Interested",
+  "Disconnected - Never Retransferred",
+  "Pending Submission",
+  "Already Sold Other Center",
+  "Denied (needs new app)",
+  "Future Submission Date",
+  "Denied After UW"
+];
+
+// Map legacy team names to real team names
+const TEAM_NAME_MAP: Record<string, string> = {
+  "Team 1": "Rawlpindi Tiger",
+  "Team 2": "Lahore qalanders",
+  "Team 3": "Islamabad United",
+  "Team 4": "Timberwolfs",
+  "Team 5": "Rawlpindi Express",
+  "Team 6": "Rawlpindi Gladiators",
+  "Team 7": "Peshawar Zalmi",
+  "Team 8": "Multan Sultans",
+  "Team 9": "Avengers",
+  "Team 10": "Hustlers",
+  "Team 11": "A-Team",
+  "Team 12": "Rawlpindi Bears",
+  "Team 13": "Alpha's",
+  "Team 14": "Vipers",
+  "Team 15": "Karachi Kings",
+  "Team 16": "Islamabad Sneak",
+};
+
+function getDisplayTeamName(teamName?: string) {
+  if (!teamName) return undefined;
+  return TEAM_NAME_MAP[teamName] || teamName;
+}
 
 export default function SheetDataPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -136,14 +174,6 @@ export default function SheetDataPage() {
     setCurrentPage(1); 
   }, [allSheetData, selectedDate, statusFilter, agentFilter]);
 
-  const uniqueStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    allSheetData.forEach(row => {
-      if (row.Status) statuses.add(row.Status);
-    });
-    return Array.from(statuses).sort();
-  }, [allSheetData]);
-
   const handleSyncScores = async () => {
     if (!activeTournament || !activeTournament.id) {
       toast({
@@ -219,12 +249,12 @@ export default function SheetDataPage() {
   }
   
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 px-4 md:px-8 lg:px-16 py-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-card rounded-lg shadow">
         <h1 className="font-headline text-3xl md:text-4xl font-bold text-primary flex items-center">
           <FileText className="mr-3 h-8 w-8" /> 
           {user?.role === 'admin' ? "All Sheet Data Entries" : 
-           user?.teamNameForFilter ? `${user.teamNameForFilter} - Sheet Data` : "Sheet Data"}
+           user?.teamNameForFilter ? `${getDisplayTeamName(user.teamNameForFilter)} - Sheet Data` : "Sheet Data"}
         </h1>
         {user?.role === 'admin' && (
             <Button 
@@ -300,7 +330,7 @@ export default function SheetDataPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_STATUSES_VALUE}>All Statuses</SelectItem>
-                {uniqueStatuses.map(status => (
+                {ALL_STATUSES.map(status => (
                   <SelectItem key={status} value={status}>{status}</SelectItem>
                 ))}
               </SelectContent>
@@ -354,7 +384,7 @@ export default function SheetDataPage() {
           <CardHeader>
               <CardTitle>
                 {user?.role === 'admin' ? "All Entries" : 
-                 user?.teamNameForFilter ? `Entries for ${user.teamNameForFilter}` : "Entries"}
+                 user?.teamNameForFilter ? `Entries for ${getDisplayTeamName(user.teamNameForFilter)}` : "Entries"}
                  <span className="text-sm font-normal text-muted-foreground ml-2">({filteredAndSortedSheetData.length} matching entries)</span>
               </CardTitle>
           </CardHeader>
@@ -364,7 +394,7 @@ export default function SheetDataPage() {
                 Showing page {currentPage} of {totalPages}. 
                 {user?.role === 'admin' 
                   ? " List of entries from Google Sheet. Use button above to sync to active tournament."
-                  : ` List of entries for ${user?.teamNameForFilter || 'your team'}, updated in real-time.`}
+                  : ` List of entries for ${getDisplayTeamName(user.teamNameForFilter) || 'your team'}, updated in real-time.`}
               </TableCaption>
               <TableHeader>
                   <TableRow>
@@ -421,4 +451,3 @@ export default function SheetDataPage() {
   );
 }
 
-    
