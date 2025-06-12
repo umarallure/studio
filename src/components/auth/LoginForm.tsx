@@ -95,7 +95,7 @@ export default function LoginForm() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="•••••••• (e.g. adminpassword / team1password1)"
+          placeholder="••••••••"
           required
           className="bg-input"
           disabled={isLoading}

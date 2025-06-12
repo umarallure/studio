@@ -9,7 +9,8 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Gamepad2 size={32} />
+            <img src="/landing/icon.png" alt="icon" className="h-16 w-16 rounded-full" loading="lazy" width={100} height={100}
+            />
           </div>
           <CardTitle className="font-headline text-3xl text-primary">BPO Games</CardTitle>
           <CardDescription className="text-muted-foreground">Sign in to join the BPO Games!</CardDescription>
