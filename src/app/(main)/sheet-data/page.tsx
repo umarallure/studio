@@ -413,7 +413,7 @@ export default function SheetDataPage() {
                   <TableRow key={row.id}>
                       <TableCell>{row.Agent || 'N/A'}</TableCell>
                       <TableCell>{row.Date || 'N/A'}</TableCell>
-                      <TableCell className="font-medium">{row.LeadVender || 'N/A'}</TableCell>
+                      <TableCell className="font-medium">{getDisplayTeamName(row.LeadVender) || 'N/A'}</TableCell>
                       <TableCell>{row.Status || 'N/A'}</TableCell>
                       <TableCell>{row.INSURED_NAME || 'N/A'}</TableCell>
                       <TableCell>{row.ProductType || 'N/A'}</TableCell>
