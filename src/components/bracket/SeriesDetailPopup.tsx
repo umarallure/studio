@@ -289,10 +289,8 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
                 
               </div>
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <User className="h-4 w-4 text-primary" />
-                  <span className="text-muted-foreground">Best Agent: {day.team1Stats.bestAgent.name}</span>
-                </div>
+                
+                
                 
               </div>
             </div>
@@ -337,10 +335,7 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
                 
               </div>
               <div className="space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <User className="h-4 w-4 text-primary" />
-                  <span className="text-muted-foreground">Best Agent: {day.team2Stats.bestAgent.name}</span>
-                </div>
+                
                 
                   
                

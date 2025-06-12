@@ -37,7 +37,7 @@ export default function BPOGamesLanding() {
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
                 <Button
                   size="lg"
-                  className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] hover:from-[#0a7578]/90 hover:to-[#b17e1e]/90 text-lg px-8 py-6"
+                  className=" hover:from-[#0a7578]/90 hover:to-[#b17e1e]/90 text-lg px-8 py-6"
                 >
                   Register Your Team
                   <ArrowRight className="ml-2 w-5 h-5" />

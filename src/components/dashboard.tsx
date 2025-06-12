@@ -255,16 +255,7 @@ export default function Dashboard() {
               description="Percentage of successful entries"
               trend="up"
             />
-            <MetricCard
-              title="Top Agent"
-              value={topPerformers.length > 0 ? topPerformers[0].name : "No data"}
-              icon={Award}
-              description={
-                topPerformers.length > 0
-                  ? `${topPerformers[0].submissions} submissions, ${topPerformers[0].winRate}% win rate`
-                  : "No agent data for this team"
-              }
-            />
+            
           </div>
 
           {/* Charts Section */}
