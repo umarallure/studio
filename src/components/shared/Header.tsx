@@ -65,6 +65,7 @@ export default function Header() {
 
   const adminNavItems = [
     { href: '/create-tournament', label: 'New Tournament', icon: PlusSquare, adminOnly: true },
+    { href: '/admin/upload-xcel', label: 'Upload Sheet', icon: FileText, adminOnly: true },
   ];
 
   const getVisibleNavItems = () => {
