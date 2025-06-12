@@ -22,7 +22,7 @@ export default function BPOGamesLanding() {
 
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
                 The{" "}
-                <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
+                <span className=" ">
                   BPO Games
                 </span>
               </h1>
@@ -121,7 +121,7 @@ export default function BPOGamesLanding() {
             </Badge>
             <h2 className="text-3xl md:text-5xl font-bold mb-4">
               How the{" "}
-              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
+              <span className=" ">
                 Competition
               </span>{" "}
               Works
@@ -193,7 +193,7 @@ export default function BPOGamesLanding() {
             </Badge>
             <h2 className="text-3xl md:text-5xl font-bold mb-4">
               Tournament{" "}
-              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">Rules</span>
+              <span className=" ">Rules</span>
             </h2>
           </div>
 
@@ -302,7 +302,7 @@ export default function BPOGamesLanding() {
       </Badge>
       <h2 className="text-3xl md:text-5xl font-bold mb-4">
         Competition{" "}
-        <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
+        <span className=" ">
           Timeline
         </span>
       </h2>
@@ -438,7 +438,7 @@ export default function BPOGamesLanding() {
             </Badge>
             <h2 className="text-3xl md:text-5xl font-bold mb-4">
               Win Big with{" "}
-              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">$4,500</span>{" "}
+              <span className=" ">$4,500</span>{" "}
               in Prizes
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -546,7 +546,7 @@ export default function BPOGamesLanding() {
             </Badge>
             <h2 className="text-3xl md:text-5xl font-bold mb-4">
               What Teams Are{" "}
-              <span className="bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">Saying</span>
+              <span className=" ">Saying</span>
             </h2>
           </div>
 

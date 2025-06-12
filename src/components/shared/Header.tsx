@@ -94,12 +94,10 @@ export default function Header() {
         className="container flex h-16 max-w-[2200px] items-center justify-between px-2 sm:px-4 md:px-8 bg-transparent border-none w-full min-w-0"
       >
         <Link href="/bracket" className="flex items-center space-x-2">
-          <div className="w-10 h-10 bg-gradient-to-r from-[#0a7578] to-[#b17e1e] rounded-xl flex items-center justify-center">
-            <Gamepad2 className="h-6 w-6 text-white" />
-          </div>
-          <span className="font-bold text-2xl bg-gradient-to-r from-[#0a7578] to-[#b17e1e] bg-clip-text text-transparent">
-            BPO Games
-          </span>
+          <div className="">
+            <img src="/landing/icon.png" alt="icon" className="h-10 w-10 rounded-full" loading="lazy" width={100} height={100}
+            />
+          </div><span className="font-bold text-2xl">BPO Games</span>
         </Link>
         
         {/* Desktop Navigation */}
