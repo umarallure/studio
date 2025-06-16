@@ -14,6 +14,7 @@ import SeriesDetailPopup from "@/components/bracket/SeriesDetailPopup"
 import { Loader2, AlertTriangle, Info, Trophy, Calendar, Users, Target, Star } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { format as formatDate, addDays, isValid as isValidDate } from "date-fns"
+import { getTeamDailyPerformance } from '@/ai/flows/get-team-daily-performance-flow';
 
 interface AdvancedTeam {
   name: string | null
@@ -970,6 +971,33 @@ function TournamentMatchBox({
   const team1 = seed.teams[0]
   const team2 = seed.teams[1]
 
+  // --- New: State for today's entries ---
+  const [todayEntries, setTodayEntries] = useState<{ team1: number | null, team2: number | null }>({ team1: null, team2: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchTodayEntries() {
+      const todayStr = formatDate(new Date(), 'yyyy-MM-dd');
+      let t1 = null, t2 = null;
+      try {
+        if (team1?.name && team1.name.toLowerCase() !== "tbd") {
+          const perf1 = await getTeamDailyPerformance({ teamName: team1.name, targetDate: todayStr });
+          t1 = perf1?.submittedEntries ?? null;
+        }
+        if (team2?.name && team2.name.toLowerCase() !== "tbd") {
+          const perf2 = await getTeamDailyPerformance({ teamName: team2.name, targetDate: todayStr });
+          t2 = perf2?.submittedEntries ?? null;
+        }
+      } catch (e) {
+        // ignore errors, show null
+      }
+      if (!cancelled) setTodayEntries({ team1: t1, team2: t2 });
+    }
+    fetchTodayEntries();
+    return () => { cancelled = true; };
+  }, [team1?.name, team2?.name]);
+  // --- End new ---
+
   let seriesWinnerName: string | null = null
   let winnerIndex: 0 | 1 | undefined = undefined
 
@@ -1016,9 +1044,19 @@ function TournamentMatchBox({
 
             {/* Teams */}
             <div className="w-[200px]">
-              <TournamentTeamSlot team={team1} isWinner={winnerIndex === 0} position="top" />
+              <TournamentTeamSlot
+                team={team1}
+                isWinner={winnerIndex === 0}
+                position="top"
+                todayEntries={todayEntries.team1}
+              />
               <div className="border-t border-gray-200"></div>
-              <TournamentTeamSlot team={team2} isWinner={winnerIndex === 1} position="bottom" />
+              <TournamentTeamSlot
+                team={team2}
+                isWinner={winnerIndex === 1}
+                position="bottom"
+                todayEntries={todayEntries.team2}
+              />
             </div>
 
             {/* Match Status */}
@@ -1048,14 +1086,17 @@ function TournamentMatchBox({
   )
 }
 
+// --- Update TournamentTeamSlot to accept todayEntries and render it ---
 function TournamentTeamSlot({
   team,
   isWinner,
   position,
+  todayEntries,
 }: {
   team: AdvancedTeam | undefined
   isWinner?: boolean
   position: "top" | "bottom"
+  todayEntries?: number | null
 }) {
   if (!team || !team.name || team.name.toLowerCase() === "tbd") {
     return (
@@ -1080,15 +1121,23 @@ function TournamentTeamSlot({
           {getDisplayTeamName(team.name)}
         </span>
       </div>
-      {team.score !== undefined && (
-        <span
-          className={`text-xs font-bold px-2 py-1 rounded ${
-            isWinner ? "bg-gradient-to-r from-[#0a7578] to-[#b17e1e] text-white" : "bg-gray-100 text-gray-600"
-          }`}
-        >
-          {team.score}
-        </span>
-      )}
+      <div className="flex items-center gap-1">
+        {team.score !== undefined && (
+          <span
+            className={`text-xs font-bold px-2 py-1 rounded ${
+              isWinner ? "bg-gradient-to-r from-[#0a7578] to-[#b17e1e] text-white" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {team.score}
+          </span>
+        )}
+        {/* --- New: Today's entries count --- */}
+        {todayEntries !== null && todayEntries !== undefined && (
+          <span className="text-[11px] text-blue-600 bg-blue-50 rounded px-1.5 py-0.5 ml-1" title="Today's submissions">
+            +{todayEntries} today
+          </span>
+        )}
+      </div>
     </div>
   )
 }

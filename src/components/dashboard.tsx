@@ -77,9 +77,34 @@ const TEAM_NAME_MAP: Record<string, string> = {
   "Team 16": "Islamabad Sneak",
 };
 
+// Short code map for teams
+const TEAM_SHORT_CODE_MAP: Record<string, string> = {
+  "Team 1": "RWT",
+  "Team 2": "LQ",
+  "Team 3": "IU",
+  "Team 4": "TMW",
+  "Team 5": "RWE",
+  "Team 6": "RWG",
+  "Team 7": "PZ",
+  "Team 8": "MS",
+  "Team 9": "AVG",
+  "Team 10": "HST",
+  "Team 11": "ATM",
+  "Team 12": "RWB",
+  "Team 13": "ALP",
+  "Team 14": "VIP",
+  "Team 15": "KK",
+  "Team 16": "ISB",
+};
+
 function getDisplayTeamName(teamName?: string) {
   if (!teamName) return undefined;
   return TEAM_NAME_MAP[teamName] || teamName;
+}
+
+function getTeamShortCode(teamName?: string) {
+  if (!teamName) return '';
+  return TEAM_SHORT_CODE_MAP[teamName] || teamName;
 }
 
 export default function Dashboard() {
@@ -551,7 +576,7 @@ export default function Dashboard() {
                     return (
                       <div key={team.name} className="grid grid-cols-5 p-3 text-sm items-center">
                         <div className="font-medium">{index + 1}</div>
-                        <div className="col-span-2 font-medium">{team.name}</div>
+                        <div className="col-span-2 font-medium">{getDisplayTeamName(team.name)}</div>
                         <div>
                           {wins}W - {losses}L
                         </div>
@@ -590,7 +615,7 @@ export default function Dashboard() {
                   <BarChart data={teams} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                     <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={100} />
+                    <YAxis dataKey="name" type="category" width={60} tickFormatter={getTeamShortCode} />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: "hsl(var(--popover))",
@@ -671,11 +696,11 @@ export default function Dashboard() {
                         {match.date.split("-")[2]}/{match.date.split("-")[1]}
                       </div>
                       <div className="col-span-2 font-medium">
-                        {match.team1} vs {match.team2}
+                        {getDisplayTeamName(match.team1)} vs {getDisplayTeamName(match.team2)}
                       </div>
                       <div>{match.score}</div>
                       <div>
-                        <Badge className="bg-[#0a7578]/10 text-[#0a7578] border-[#0a7578]/20">{match.winner}</Badge>
+                        <Badge className="bg-[#0a7578]/10 text-[#0a7578] border-[#0a7578]/20">{getDisplayTeamName(match.winner)}</Badge>
                       </div>
                     </div>
                   ))}

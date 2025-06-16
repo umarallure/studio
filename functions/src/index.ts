@@ -1,7 +1,7 @@
-
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { onDocumentCreated, FirestoreEvent } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated, FirestoreEvent } from "firebase-functions/v2/firestore";
+import { Change } from "firebase-functions/v2/firestore";
 import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 import { format as formatDate, addDays, parseISO, isFuture, isEqual, getDay } from "date-fns";
 
@@ -475,17 +475,15 @@ async function performTournamentSync(activeTournamentId: string): Promise<{ succ
 
 
 export const autoSyncTournamentOnSheetChange = onDocumentCreated(
-  "/Sheet1Rows/{docId}", 
+  "/Sheet1Rows/{docId}",
   async (event: FirestoreEvent<QueryDocumentSnapshot | undefined, { docId: string }>) => {
-    
-    const eventDocId = event.params.docId; // Renamed to avoid conflict with local docId variables
+    const eventDocId = event.params.docId;
     const newSheetRowSnapshot = event.data;
 
     if (!newSheetRowSnapshot || !newSheetRowSnapshot.exists) {
         functions.logger.info(`New Sheet1Row created (ID: ${eventDocId}), but snapshot data is missing. No sync triggered.`);
         return null;
     }
-    
     const newSheetRowData = newSheetRowSnapshot.data();
     functions.logger.info(`New Sheet1Row created (ID: ${eventDocId}):`, newSheetRowData);
     
@@ -546,5 +544,77 @@ export const autoSyncTournamentOnSheetChange = onDocumentCreated(
     }
   });
 
+export const autoSyncTournamentOnSheetStatusSubmitted = onDocumentUpdated(
+  "/Sheet1Rows/{docId}",
+  async (event: FirestoreEvent<Change<QueryDocumentSnapshot> | undefined, { docId: string }>) => {
+    const beforeData = event.data?.before?.data();
+    const afterData = event.data?.after?.data();
+    const eventDocId = event.params.docId;
 
-    
+    // Extract status from both before and after, handling 'fields' wrapper if present
+    let beforeStatus: string | undefined;
+    let afterStatus: string | undefined;
+
+    if (beforeData?.fields && typeof beforeData.fields === 'object') {
+      beforeStatus = beforeData.fields.Status?.stringValue;
+    } else if (beforeData?.Status) {
+      beforeStatus = beforeData.Status;
+    } else if (beforeData?.status) {
+      beforeStatus = beforeData.status;
+    }
+
+    if (afterData?.fields && typeof afterData.fields === 'object') {
+      afterStatus = afterData.fields.Status?.stringValue;
+    } else if (afterData?.Status) {
+      afterStatus = afterData.Status;
+    } else if (afterData?.status) {
+      afterStatus = afterData.status;
+    }
+
+    // Only trigger if status changed to "Submitted"
+    if (beforeStatus !== "Submitted" && afterStatus === "Submitted") {
+      functions.logger.info(`Sheet1Row ${eventDocId} status changed to 'Submitted'. Attempting to find active tournament for sync.`);
+      let activeTournamentId: string | null = null;
+      try {
+        const tournamentsRef = db.collection("tournaments");
+        const q = tournamentsRef.where("status", "!=", "Completed").orderBy("status").orderBy("createdAt", "desc").limit(1);
+        const querySnapshot = await q.get();
+
+        if (!querySnapshot.empty) {
+          activeTournamentId = querySnapshot.docs[0].id;
+          const tournamentData = querySnapshot.docs[0].data();
+          functions.logger.info(`Found active tournament: "${tournamentData.name}" (ID: ${activeTournamentId}) for sync.`);
+        } else {
+          const latestQ = tournamentsRef.orderBy("createdAt", "desc").limit(1);
+          const latestSnapshot = await latestQ.get();
+          if(!latestSnapshot.empty && latestSnapshot.docs[0].data().status !== "Completed") {
+            activeTournamentId = latestSnapshot.docs[0].id;
+            const tournamentData = latestSnapshot.docs[0].data();
+            functions.logger.info(`Fallback: Found latest tournament: "${tournamentData.name}" (ID: ${activeTournamentId}) for sync.`);
+          } else {
+            functions.logger.warn("No active (non-completed) tournament found to sync with.");
+            return null;
+          }
+        }
+
+        if (activeTournamentId) {
+          const syncResult = await performTournamentSync(activeTournamentId);
+          if (syncResult.success) {
+            functions.logger.info(`Automatic sync for tournament ${activeTournamentId} triggered by Sheet1Row ${eventDocId} (status update) completed successfully. Message: ${syncResult.message}. Details:`, syncResult.details?.join("; "));
+          } else {
+            functions.logger.error(`Automatic sync for tournament ${activeTournamentId} triggered by Sheet1Row ${eventDocId} (status update) failed. Message: ${syncResult.message}. Details:`, syncResult.details?.join("; "));
+          }
+        }
+        return null;
+      } catch (error: any) {
+        functions.logger.error(`Error during autoSyncTournamentOnSheetStatusSubmitted for Sheet1Row ${eventDocId}:`, error.message, error.stack);
+        return null;
+      }
+    } else {
+      functions.logger.info(`Sheet1Row ${eventDocId} status update does not result in 'Submitted' (Before: ${beforeStatus || 'Not Found'}, After: ${afterStatus || 'Not Found'}). No sync triggered.`);
+      return null;
+    }
+  }
+);
+
+
