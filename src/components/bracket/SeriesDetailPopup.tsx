@@ -394,15 +394,19 @@ const SeriesDetailPopup: React.FC<SeriesDetailPopupProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[90vw] min-h-[60vh] max-h-[85vh] flex flex-col bg-card p-0">
-        <button 
-          onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 rounded-sm opacity-90 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-          style={{ background: 'none', border: 'none' }}
-        >
-          <X className="h-4 w-4 text-red-500" />
-          <span className="sr-only">Close</span>
-        </button>
+      <DialogContent
+        className="max-w-4xl w-[90vw] min-h-[60vh] max-h-[85vh] flex flex-col bg-card p-0"
+        customCloseButton={
+          <button 
+            onClick={() => onOpenChange(false)}
+            className="absolute right-4 top-4 z-20 rounded-sm opacity-90 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground bg-white/80"
+            style={{ border: 'none' }}
+          >
+            <X className="h-4 w-4 text-red-500" />
+            <span className="sr-only">Close</span>
+          </button>
+        }
+      >
         <DialogHeader className="p-6 border-b flex-shrink-0 bg-card/50 backdrop-blur sticky top-0 z-10">
           <DialogTitle className="text-xl text-primary font-headline">
             Series Details: {getDisplayTeamName(team1Name) || "Team 1"} vs {getDisplayTeamName(team2Name) || "Team 2"}
