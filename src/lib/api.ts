@@ -1,40 +1,136 @@
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
 
 export const fetchTournamentTeams = async () => {
-  // Real team names with random win/loss data
-  return [
-    { name: "Rawlpindi Tiger", wins: 7, losses: 2 },
-    { name: "Lahore qalanders", wins: 5, losses: 4 },
-    { name: "Islamabad United", wins: 6, losses: 3 },
-    { name: "Timberwolfs", wins: 4, losses: 5 },
-    { name: "Rawlpindi Express", wins: 3, losses: 6 },
-    { name: "Rawlpindi Gladiators", wins: 2, losses: 7 },
-    { name: "Peshawar Zalmi", wins: 6, losses: 3 },
-    { name: "Multan Sultans", wins: 5, losses: 4 },
-    { name: "Avengers", wins: 4, losses: 5 },
-    { name: "Hustlers", wins: 3, losses: 6 },
-    { name: "A-Team", wins: 7, losses: 2 },
-    { name: "Rawlpindi Bears", wins: 2, losses: 7 },
-    { name: "Alpha's", wins: 5, losses: 4 },
-    { name: "Vipers", wins: 6, losses: 3 },
-    { name: "Karachi Kings", wins: 4, losses: 5 },
-    { name: "Islamabad Sneak", wins: 3, losses: 6 },
-  ]
+  const teams = Array.from({ length: 16 }, (_, i) => `Team ${i + 1}`);
+  const teamStats: Record<string, { wins: number; losses: number }> = {};
+  teams.forEach(team => {
+    teamStats[team] = { wins: 0, losses: 0 };
+  });
+
+  // Get the latest tournament id
+  const tournamentsRef = collection(db, "tournaments");
+  const tournamentsSnap = await getDocs(tournamentsRef);
+  let latestTournamentId = "";
+  let latestTimestamp = 0;
+  tournamentsSnap.forEach(doc => {
+    const data = doc.data();
+    if (data.createdAt && data.createdAt.seconds) {
+      if (data.createdAt.seconds > latestTimestamp) {
+        latestTimestamp = data.createdAt.seconds;
+        latestTournamentId = doc.id;
+      }
+    } else {
+      if (doc.id > latestTournamentId) {
+        latestTournamentId = doc.id;
+      }
+    }
+  });
+  if (!latestTournamentId) return teams.map(team => ({ name: team, wins: 0, losses: 0 }));
+
+  const matchesRef = collection(db, `tournaments/${latestTournamentId}/rounds/1/matches`);
+  const matchesSnap = await getDocs(matchesRef);
+
+  for (const matchDoc of matchesSnap.docs) {
+    const matchId = matchDoc.id;
+    const dailyResultsRef = collection(db, `tournaments/${latestTournamentId}/rounds/1/matches/${matchId}/dailyResults`);
+    const dailyResultsSnap = await getDocs(dailyResultsRef);
+
+    for (const dailyDoc of dailyResultsSnap.docs) {
+      const data = dailyDoc.data();
+      // Firestore REST API returns fields nested under 'fields' and values as stringValue/integerValue
+      const fields = data.fields || {};
+      let winner = fields.winner?.stringValue;
+      let loser = fields.loser?.stringValue;
+      let team1 = fields.team1?.stringValue;
+      let team2 = fields.team2?.stringValue;
+      let team1Score = fields.team1Score?.integerValue !== undefined ? Number(fields.team1Score.integerValue) : undefined;
+      let team2Score = fields.team2Score?.integerValue !== undefined ? Number(fields.team2Score.integerValue) : undefined;
+      // Fallback: try to determine winner/loser from scores if not present
+      if (!winner && team1 && team2 && typeof team1Score === 'number' && typeof team2Score === 'number') {
+        if (team1Score > team2Score) {
+          winner = team1;
+          loser = team2;
+        } else if (team2Score > team1Score) {
+          winner = team2;
+          loser = team1;
+        }
+      }
+      if (teams.includes(winner)) {
+        teamStats[winner].wins += 1;
+      }
+      if (teams.includes(loser)) {
+        teamStats[loser].losses += 1;
+      }
+    }
+  }
+
+  // Return in the required array format
+  return teams.map(team => ({
+    name: team,
+    wins: teamStats[team].wins,
+    losses: teamStats[team].losses,
+  }));
 }
 
 export const fetchTournamentMatches = async () => {
-  // Replace with actual data fetching logic from your data source
-  return [
-    { date: "2025-06-16", team1: "Team Alpha", team2: "Team Beta", winner: "Team Alpha", score: "3-1" },
-    { date: "2025-06-16", team1: "Team Gamma", team2: "Team Zeta", winner: "Team Zeta", score: "1-3" },
-    { date: "2025-06-23", team1: "Team Alpha", team2: "Team Zeta", winner: "Team Alpha", score: "3-0" },
-    { date: "2025-06-23", team1: "Team Beta", team2: "Team Gamma", winner: "Team Beta", score: "3-2" },
-    { date: "2025-07-01", team1: "Team Alpha", team2: "Team Epsilon", winner: "Team Epsilon", score: "1-3" },
-    { date: "2025-07-01", team1: "Team Beta", team2: "Team Delta", winner: "Team Beta", score: "3-0" },
-    { date: "2025-07-01", team1: "Team Eta", team2: "Team Theta", winner: "Team Eta", score: "3-1" },
-  ]
-}
+  // 1. Get latest tournament and its startDate
+  const tournamentsRef = collection(db, "tournaments");
+  const tournamentsSnap = await getDocs(tournamentsRef);
+  let latestTournament = null;
+  let latestTimestamp = 0;
+  tournamentsSnap.forEach(doc => {
+    const data = doc.data();
+    if (data.createdAt && data.createdAt.seconds > latestTimestamp) {
+      latestTimestamp = data.createdAt.seconds;
+      latestTournament = { id: doc.id, ...data };
+    }
+  });
+  if (!latestTournament) return [];
+
+  const startDate = latestTournament.startDate?.seconds
+    ? new Date(latestTournament.startDate.seconds * 1000)
+    : null;
+  if (!startDate) return [];
+
+  // 2. Fetch all matches in round 1 (expand for more rounds if needed)
+  const matchesRef = collection(db, `tournaments/${latestTournament.id}/rounds/1/matches`);
+  const matchesSnap = await getDocs(matchesRef);
+
+  const results = [];
+  for (const matchDoc of matchesSnap.docs) {
+    const matchId = matchDoc.id;
+    const dailyResultsRef = collection(db, `tournaments/${latestTournament.id}/rounds/1/matches/${matchId}/dailyResults`);
+    const dailyResultsSnap = await getDocs(dailyResultsRef);
+
+    for (const dailyDoc of dailyResultsSnap.docs) {
+      const data = dailyDoc.data();
+      const fields = data.fields || {};
+      const dateStr = dailyDoc.id; // e.g. "2025-06-16"
+      const dateObj = new Date(dateStr);
+      if (dateObj < startDate) continue;
+
+      const team1 = fields.team1?.stringValue;
+      const team2 = fields.team2?.stringValue;
+      const winner = fields.winner?.stringValue;
+      const team1Score = fields.team1Score?.integerValue !== undefined ? Number(fields.team1Score.integerValue) : undefined;
+      const team2Score = fields.team2Score?.integerValue !== undefined ? Number(fields.team2Score.integerValue) : undefined;
+      let score = undefined;
+      if (typeof team1Score === "number" && typeof team2Score === "number") {
+        score = `${team1Score}-${team2Score}`;
+      }
+
+      results.push({
+        date: dateStr,
+        team1,
+        team2,
+        winner,
+        score,
+      });
+    }
+  }
+  return results;
+};
 
 export const fetchPerformanceData = async (teamName: string) => {
   // Use the already initialized db from firebase.ts
@@ -204,6 +300,7 @@ export const fetchTournamentMetrics = async (teamName?: string) => {
       submittedEntries++;
       dateCounts[date] = (dateCounts[date] || 0) + 1;
     }
+    
   });
 
   // Calculate average submissions per day (for days with at least one submission)
