@@ -15,6 +15,7 @@ import { Loader2, AlertTriangle, Info, Trophy, Calendar, Users, Target, Star } f
 import { useToast } from "@/hooks/use-toast"
 import { format as formatDate, addDays, isValid as isValidDate } from "date-fns"
 import { getTeamDailyPerformance } from '@/ai/flows/get-team-daily-performance-flow';
+import { zonedTimeToUtc, toZonedTime } from "date-fns-tz"
 
 interface AdvancedTeam {
   name: string | null
@@ -144,6 +145,30 @@ function getDisplayTeamName(teamName?: string | null) {
   return TEAM_NAME_MAP[teamName] || teamName;
 }
 
+// --- Add EDT/EST date/time display with correct abbreviation ---
+const estZone = "America/New_York";
+
+// Use Intl.DateTimeFormat to get the correct abbreviation (EDT/EST)
+function getEasternTimeDisplay() {
+  // Get the current UTC time and convert to America/New_York
+  const nowUtc = new Date(Date.now());
+  // Use Intl.DateTimeFormat to format in NY time zone
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: "America/New_York",
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZoneName: 'short'
+  });
+  return formatter.format(nowUtc);
+}
+const estDateTimeStr = getEasternTimeDisplay();
+
 export default function AdvancedTournamentBracket() {
   const [activeTournament, setActiveTournament] = useState<TournamentSettings | null>(null)
   const [isLoadingTournament, setIsLoadingTournament] = useState(true)
@@ -151,7 +176,7 @@ export default function AdvancedTournamentBracket() {
   const [criticalError, setCriticalError] = useState<string | null>(null)
   const { toast } = useToast()
 
-  const [isSeriesDetailPopupOpen, setIsSeriesDetailPopupOpen] = useState(false)
+  const [isSeriesDetailPopupOpen, setIsSeriesDetailPopupOpen] = useState(false);
   const [selectedMatchupForPopup, setSelectedMatchupForPopup] = useState<{
     matchupId: string
     roundId: string
@@ -162,7 +187,6 @@ export default function AdvancedTournamentBracket() {
   const [rawMatchDataByRound, setRawMatchDataByRound] = useState<{ [roundId: string]: MatchupType[] }>({})
   const [dynamicDisplayRounds, setDynamicDisplayRounds] = useState<AdvancedRound[] | null>(null)
 
-  // ... (keeping all the existing useEffect hooks and logic the same)
   useEffect(() => {
     setIsLoadingTournament(true)
     setCriticalError(null)
@@ -617,8 +641,8 @@ export default function AdvancedTournamentBracket() {
         roundId: targetRoundId,
         team1Name,
         team2Name,
-      })
-      setIsSeriesDetailPopupOpen(true)
+      });
+      setIsSeriesDetailPopupOpen(true); // <-- fix here
       console.log(
         "[AdvBracket] Opening SeriesDetailPopup for matchup:",
         foundMatchup.id,
@@ -775,6 +799,12 @@ export default function AdvancedTournamentBracket() {
 
   return (
     <div className="space-y-8">
+      {/* EDT/EST Date/Time Display */}
+      <div className="flex justify-end items-center pr-2 pt-2">
+        <span className="text-xs text-muted-foreground bg-gray-50 px-2 py-1 rounded border border-gray-200">
+          {estDateTimeStr} (America/New_York)
+        </span>
+      </div>
       {/* Tournament Header Badge */}
       <div className="text-center space-y-4">
         <div className="flex items-center justify-center gap-3">
@@ -883,7 +913,7 @@ export default function AdvancedTournamentBracket() {
       {selectedMatchupForPopup && activeTournament && activeTournament.startDate && (
         <SeriesDetailPopup
           isOpen={isSeriesDetailPopupOpen}
-          onOpenChange={setIsSeriesDetailPopupOpen}
+          onOpenChange={setIsSeriesDetailPopupOpen} // <-- fix here
           matchupId={selectedMatchupForPopup.matchupId}
           roundId={selectedMatchupForPopup.roundId}
           team1Name={selectedMatchupForPopup.team1Name}
@@ -977,7 +1007,12 @@ function TournamentMatchBox({
   useEffect(() => {
     let cancelled = false;
     async function fetchTodayEntries() {
-      const todayStr = formatDate(new Date(), 'yyyy-MM-dd');
+      // --- Use EST/EDT (America/New_York) for "today" ---
+      const estZone = "America/New_York";
+      const now = new Date();
+      const estNow = toZonedTime(now, estZone);
+      // Always use EST/EDT date for the query
+      const todayStr = formatDate(estNow, 'yyyy-MM-dd');
       let t1 = null, t2 = null;
       try {
         if (team1?.name && team1.name.toLowerCase() !== "tbd") {
@@ -1131,9 +1166,9 @@ function TournamentTeamSlot({
             {team.score}
           </span>
         )}
-        {/* --- New: Today's entries count --- */}
+        {/* --- New: Today's entries count (EST) --- */}
         {todayEntries !== null && todayEntries !== undefined && (
-          <span className="text-[11px] text-blue-600 bg-blue-50 rounded px-1.5 py-0.5 ml-1" title="Today's submissions">
+          <span className="text-[11px] text-blue-600 bg-blue-50 rounded px-1.5 py-0.5 ml-1" title="Today's submissions (EST)">
             +{todayEntries} today
           </span>
         )}
