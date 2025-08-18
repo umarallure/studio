@@ -17,7 +17,7 @@ export default function BPOGamesLanding() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <Badge variant="secondary" className="mb-6 px-4 py-2 bg-[#0a7578]/10 text-[#0a7578]">
-                🏆 Registration Open - Deadline June 9th
+                🏆 Registration Closed !!!
               </Badge>
 
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
@@ -324,7 +324,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-center">June 9th, 2025</div>
+          <div className="text-2xl font-bold text-center">Aug 17th, 2025</div>
         </CardContent>
       </Card>
 
@@ -337,7 +337,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">June 9-13, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Aug 11-17, 2025</div>
         </CardContent>
       </Card>
 
@@ -350,7 +350,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">June 16-20, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Aug 17-22, 2025</div>
         </CardContent>
       </Card>
 
@@ -363,7 +363,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">June 23-27, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Aug 25-29, 2025</div>
         </CardContent>
       </Card>
 
@@ -376,7 +376,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">June 30 - July 4, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Sep 01-05, 2025</div>
         </CardContent>
       </Card>
 
@@ -389,7 +389,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">July 7-11, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Sep 08-12, 2025</div>
         </CardContent>
       </Card>
 
@@ -405,7 +405,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">July 14, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Sep 08-12, 2025</div>
         </CardContent>
       </Card>
 
@@ -421,7 +421,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-green-600 text-center">July 21, 2025</div>
+          <div className="text-lg font-semibold text-green-600 text-center">Sep 15, 2025</div>
         </CardContent>
       </Card>
     </div>
