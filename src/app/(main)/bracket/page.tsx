@@ -380,19 +380,6 @@ export default function BPOGamesLanding() {
         </CardContent>
       </Card>
 
-      {/* Semifinals */}
-      <Card className="w-full max-w-sm border-0 shadow-lg hover:shadow-xl transition-shadow">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Semifinals</CardTitle>
-            <Badge variant="outline">Final 4</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">Sep 08-12, 2025</div>
-        </CardContent>
-      </Card>
-
       {/* Championship Match */}
       <Card className="w-full max-w-sm shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-r from-[#b17e1e]/5 to-[#0a7578]/5 border-2 border-[#b17e1e]/20">
         <CardHeader className="pb-3">
