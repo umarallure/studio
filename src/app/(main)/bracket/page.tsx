@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ArrowRight, CheckCircle, Star, Trophy, Calendar, Users, Target, Award, Clock, DollarSign } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export default function BPOGamesLanding() {
   return (
@@ -17,7 +18,7 @@ export default function BPOGamesLanding() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <Badge variant="secondary" className="mb-6 px-4 py-2 bg-[#0a7578]/10 text-[#0a7578]">
-                🏆 Registration Closed !!!
+                🏆 Registration Open — Deadline Feb 1, 2026
               </Badge>
 
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
@@ -27,11 +28,11 @@ export default function BPOGamesLanding() {
                 </span>
               </h1>
 
-              <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-6">2025 Pakistani Super League</h2>
+              <h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-6">2026 Pakistani Super League — Starts Feb 2, 2026</h2>
 
               <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
                 The Ultimate Call Center Throwdown! Join Pakistan's most competitive BPO tournament where
-                <strong> 16 teams</strong> battle for glory and <strong>$4,500 in prizes</strong> over 6 intense weeks.
+                <strong> 16 teams</strong> battle for glory and <strong>$17,500 in prizes</strong> over 6 intense weeks.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
@@ -62,20 +63,25 @@ export default function BPOGamesLanding() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span>$4,500 total prizes</span>
+                  <span>$17,500 total prizes</span>
                 </div>
               </div>
             </div>
 
             {/* Hero Image Space */}
             <div className="relative">
-              <img
-                src="/landing/hero.jpg"
-                alt="BPO Games Hero"
-                width={600}
-                height={600}
-                className="rounded-3xl shadow-lg object-cover w-full h-auto aspect-square"
+              <Image
+                src="/landing/logo1.png"
+                alt="BPO Games — 2026 Pakistani Super League"
+                width={900}
+                height={900}
+                priority
+                className="rounded-3xl shadow-lg object-cover w-full h-auto"
               />
+
+              {/* Overlaid event logo (drop `public/landing/bpo-logo-2026.png`) */}
+             
+
               {/* Floating elements */}
               <div className="absolute -top-4 -right-4 bg-white rounded-full p-3 shadow-lg">
                 <Trophy className="w-6 h-6 text-[#b17e1e]" />
@@ -101,7 +107,7 @@ export default function BPOGamesLanding() {
               <div className="text-muted-foreground font-medium">Weeks of Competition</div>
             </div>
             <div>
-              <div className="text-4xl md:text-5xl font-bold text-green-600 mb-2">$4.5K</div>
+              <div className="text-4xl md:text-5xl font-bold text-green-600 mb-2">$17,500</div>
               <div className="text-muted-foreground font-medium">Total Prize Pool</div>
             </div>
             <div>
@@ -239,7 +245,7 @@ export default function BPOGamesLanding() {
                 </div>
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                  <span>Teams registered by June 9th deadline</span>
+                  <span>Teams registered by Feb 1st deadline</span>
                 </div>
               </CardContent>
             </Card>
@@ -307,7 +313,7 @@ export default function BPOGamesLanding() {
         </span>
       </h2>
       <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-        Mark your calendars! Here's the complete schedule for the 2025 BPO Games tournament.
+        Mark your calendars — the 2026 BPO Games start Feb 2, 2026. Below is the full event timeline and key dates.
       </p>
     </div>
 
@@ -324,7 +330,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-center">Aug 17th, 2025</div>
+          <div className="text-2xl font-bold text-center">Feb 1, 2026</div>
         </CardContent>
       </Card>
 
@@ -337,7 +343,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">Aug 11-17, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Jan 27 - Feb 2, 2026</div>
         </CardContent>
       </Card>
 
@@ -350,7 +356,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">Aug 17-22, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Feb 2-7, 2026</div>
         </CardContent>
       </Card>
 
@@ -363,7 +369,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">Aug 25-29, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Feb 9-14, 2026</div>
         </CardContent>
       </Card>
 
@@ -376,7 +382,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">Sep 01-05, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Feb 16-21, 2026</div>
         </CardContent>
       </Card>
 
@@ -392,7 +398,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-[#0a7578] text-center">Sep 08-12, 2025</div>
+          <div className="text-lg font-semibold text-[#0a7578] text-center">Mar 8-14, 2026</div>
         </CardContent>
       </Card>
 
@@ -408,7 +414,7 @@ export default function BPOGamesLanding() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-lg font-semibold text-green-600 text-center">Sep 15, 2025</div>
+          <div className="text-lg font-semibold text-green-600 text-center">Mar 15, 2026</div>
         </CardContent>
       </Card>
     </div>
@@ -425,7 +431,7 @@ export default function BPOGamesLanding() {
             </Badge>
             <h2 className="text-3xl md:text-5xl font-bold mb-4">
               Win Big with{" "}
-              <span className=" ">$4,500</span>{" "}
+              <span className=" ">$17,500</span>{" "}
               in Prizes
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -441,13 +447,13 @@ export default function BPOGamesLanding() {
               <CardHeader className="text-center pb-8 pt-8">
                 <Trophy className="w-16 h-16 text-[#b17e1e] mx-auto mb-4" />
                 <CardTitle className="text-2xl">1st Place</CardTitle>
-                <div className="text-5xl font-bold mt-4 text-[#b17e1e]">$3,000</div>
+                <div className="text-5xl font-bold mt-4 text-[#b17e1e]">$10,000</div>
                 <CardDescription className="mt-2 text-lg">The Ultimate Champions</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span>$3,000 cash prize</span>
+                  <span>$10,000 cash prize</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -468,13 +474,13 @@ export default function BPOGamesLanding() {
               <CardHeader className="text-center pb-8">
                 <Award className="w-14 h-14 text-gray-500 mx-auto mb-4" />
                 <CardTitle className="text-2xl">2nd Place</CardTitle>
-                <div className="text-4xl font-bold mt-4 text-gray-600">$1,000</div>
+                <div className="text-4xl font-bold mt-4 text-gray-600">$5,000</div>
                 <CardDescription className="mt-2">Runner-up Excellence</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span>$1,000 cash prize</span>
+                  <span>$5,000 cash prize</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -491,13 +497,13 @@ export default function BPOGamesLanding() {
               <CardHeader className="text-center pb-8">
                 <Star className="w-14 h-14 text-amber-500 mx-auto mb-4" />
                 <CardTitle className="text-2xl">3rd Place</CardTitle>
-                <div className="text-4xl font-bold mt-4 text-amber-600">$500</div>
+                <div className="text-4xl font-bold mt-4 text-amber-600">$2,500</div>
                 <CardDescription className="mt-2">Bronze Medal Winners</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span>$500 cash prize</span>
+                  <span>$2,500 cash prize</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -559,7 +565,7 @@ export default function BPOGamesLanding() {
               <CardContent>
                 <p className="text-muted-foreground">
                   "The BPO Games pushed our team to new heights! The competition format is brilliant and really brings
-                  out the best in everyone. Can't wait for 2025!"
+                  out the best in everyone. Can't wait for 2026!"
                 </p>
               </CardContent>
             </Card>
@@ -624,8 +630,8 @@ export default function BPOGamesLanding() {
         <div className="container mx-auto px-4 lg:px-6 text-center">
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Ready to Compete?</h2>
           <p className="text-xl text-orange-100 mb-8 max-w-2xl mx-auto">
-            Registration closes June 9th! Don't miss your chance to compete for $4,500 in prizes and become Pakistan's
-            BPO champion.
+            Registration closes Feb 1, 2026! Don't miss your chance to compete for $17,500 in prizes and become Pakistan's
+            BPO champion — tournament starts Feb 2.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
             <Button

@@ -8,22 +8,22 @@ const UploadXcelPage = () => {
   const [message, setMessage] = useState("");
 
   const leadVendorMap: Record<string, string> = {
-    "Rawlpindi Tiger": "Team 1",
-    "Lahore qalanders": "Team 2",
-    "Islamabad United": "Team 3",
-    "Timberwolfs": "Team 4",
-    "Rawlpindi Express": "Team 5",
-    "Rawlpindi Gladiators": "Team 6",
-    "Peshawar Zalmi": "Team 7",
-    "Multan Sultans": "Team 8",
-    "Avengers": "Team 9",
-    "Hustlers": "Team 10",
-    "A-Team": "Team 11",
-    "Rawlpindi Bears": "Team 12",
-    "Alpha's": "Team 13",
-    "Vipers": "Team 14",
-    "Karachi Kings": "Team 15",
-    "Islamabad Sneaks": "Team 16",
+    "Team 1": "Slayers",
+  "Team 2": "The Winning Edge",
+  "Team 3": "Skyline Squad",
+  "Team 4": "Saints",
+  "Team 5": "Argon Stallions",
+  "Team 6": "The Pipeline Pilots",
+  "Team 7": "Team OPTIMUS",
+  "Team 8": "Knight Riders",
+  "Team 9": "Legacy Lions",
+  "Team 10": "The DeBug Squad",
+  "Team 11": "Closers Cartel",
+  "Team 12": "Team Bandits",
+  "Team 13": "Team Amigo",
+  "Team 14": "Kingstons League",
+  "Team 15": "Team Leo",
+  "Team 16": "Zero2one"
   };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {

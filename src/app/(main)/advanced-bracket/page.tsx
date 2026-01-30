@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 import { useState, useEffect, useCallback } from "react"
-import { Bracket, Seed, SeedItem, type RoundProps as ReactBracketsRoundProps } from "react-brackets"
+import { Bracket, Seed, SeedItem, type IRoundProps as ReactBracketsRoundProps } from "react-brackets"
 import { Badge } from "@/components/ui/badge"
 import "@/app/styles/bracket.css"
 
@@ -15,10 +15,10 @@ import { Loader2, AlertTriangle, Info, Trophy, Calendar, Users, Target, Star } f
 import { useToast } from "@/hooks/use-toast"
 import { format as formatDate, addDays, isValid as isValidDate } from "date-fns"
 import { getTeamDailyPerformance } from '@/ai/flows/get-team-daily-performance-flow';
-import { zonedTimeToUtc, toZonedTime } from "date-fns-tz"
+import { toZonedTime } from "date-fns-tz"
 
 interface AdvancedTeam {
-  name: string | null
+  name?: string
   score?: number
 }
 
@@ -82,8 +82,8 @@ const mapMatchupToAdvancedSeed = (matchup: MatchupType, tournamentStartDate: Dat
     id: `${matchup.roundId}_${matchup.id}`,
     date: formatDate(matchWeekStartDate, "MMM d, yyyy"),
     teams: [
-      { name: matchup.team1Name, score: matchup.team1DailyWins },
-      { name: matchup.team2Name, score: matchup.team2DailyWins },
+      { name: matchup.team1Name ?? undefined, score: matchup.team1DailyWins },
+      { name: matchup.team2Name ?? undefined, score: matchup.team2DailyWins },
     ],
   }
 }
@@ -122,22 +122,22 @@ const getInferredMatch = (
 
 // Map legacy team names to real team names
 const TEAM_NAME_MAP: Record<string, string> = {
-  "Team 1": "Rawlpindi Tiger",
-  "Team 2": "Lahore qalanders",
-  "Team 3": "Islamabad United",
-  "Team 4": "Timberwolfs",
-  "Team 5": "Rawlpindi Express",
-  "Team 6": "Rawlpindi Gladiators",
-  "Team 7": "Peshawar Zalmi",
-  "Team 8": "Multan Sultans",
-  "Team 9": "Avengers",
-  "Team 10": "Hustlers",
-  "Team 11": "A-Team",
-  "Team 12": "Rawlpindi Bears",
-  "Team 13": "Alpha's",
-  "Team 14": "Vipers",
-  "Team 15": "Karachi Kings",
-  "Team 16": "Islamabad Sneak",
+  "Team 1": "Slayers",
+  "Team 2": "The Winning Edge",
+  "Team 3": "Skyline Squad",
+  "Team 4": "Saints",
+  "Team 5": "Argon Stallions",
+  "Team 6": "The Pipeline Pilots",
+  "Team 7": "Team OPTIMUS",
+  "Team 8": "Knight Riders",
+  "Team 9": "Legacy Lions",
+  "Team 10": "The DeBug Squad",
+  "Team 11": "Closers Cartel",
+  "Team 12": "Team Bandits",
+  "Team 13": "Team Amigo",
+  "Team 14": "Kingstons League",
+  "Team 15": "Team Leo",
+  "Team 16": "Zero2one"
 };
 
 function getDisplayTeamName(teamName?: string | null) {
@@ -167,14 +167,23 @@ function getEasternTimeDisplay() {
   });
   return formatter.format(nowUtc);
 }
-const estDateTimeStr = getEasternTimeDisplay();
 
+// NOTE: estDateTimeStr is intentionally initialized inside the component (moved) to avoid calling hooks at module scope.
 export default function AdvancedTournamentBracket() {
   const [activeTournament, setActiveTournament] = useState<TournamentSettings | null>(null)
   const [isLoadingTournament, setIsLoadingTournament] = useState(true)
   const [isLoadingBracketData, setIsLoadingBracketData] = useState(false)
   const [criticalError, setCriticalError] = useState<string | null>(null)
   const { toast } = useToast()
+
+  // Client-only live Eastern time string — render a stable server fallback and populate on mount.
+  const [estDateTimeStr, setEstDateTimeStr] = useState<string | null>(null);
+  useEffect(() => {
+    const update = () => setEstDateTimeStr(getEasternTimeDisplay());
+    update();
+    const iv = setInterval(update, 1000); // keep clock live; change to 60_000 for minute updates
+    return () => clearInterval(iv);
+  }, []);
 
   const [isSeriesDetailPopupOpen, setIsSeriesDetailPopupOpen] = useState(false);
   const [selectedMatchupForPopup, setSelectedMatchupForPopup] = useState<{
@@ -785,11 +794,11 @@ export default function AdvancedTournamentBracket() {
   let championshipRound: AdvancedRound[] = []
   let rightPathRounds: AdvancedRound[] = []
 
-  if (activeTournament.teamCount === 16) {
+  if (activeTournament?.teamCount === 16) {
     leftPathRounds = dynamicDisplayRounds.slice(0, 3)
     championshipRound = dynamicDisplayRounds.slice(3, 4)
     rightPathRounds = dynamicDisplayRounds.slice(4)
-  } else if (activeTournament.teamCount === 8) {
+  } else if (activeTournament?.teamCount === 8) {
     leftPathRounds = dynamicDisplayRounds.slice(0, 2)
     championshipRound = dynamicDisplayRounds.slice(2, 3)
     rightPathRounds = dynamicDisplayRounds.slice(3)
@@ -802,7 +811,7 @@ export default function AdvancedTournamentBracket() {
       {/* EDT/EST Date/Time Display */}
       <div className="flex justify-end items-center pr-2 pt-2">
         <span className="text-xs text-muted-foreground bg-gray-50 px-2 py-1 rounded border border-gray-200">
-          {estDateTimeStr} (America/New_York)
+          {estDateTimeStr ?? '—'} (America/New_York)
         </span>
       </div>
       {/* Tournament Header Badge */}
@@ -918,7 +927,7 @@ export default function AdvancedTournamentBracket() {
           roundId={selectedMatchupForPopup.roundId}
           team1Name={selectedMatchupForPopup.team1Name}
           team2Name={selectedMatchupForPopup.team2Name}
-          tournamentId={activeTournament.id}
+          tournamentId={activeTournament?.id ?? null}
           tournamentStartDate={activeTournament.startDate}
         />
       )}
@@ -1038,10 +1047,10 @@ function TournamentMatchBox({
 
   if (team1?.score !== undefined && team1.score >= 3) {
     winnerIndex = 0
-    seriesWinnerName = team1.name
+    seriesWinnerName = team1.name ?? null
   } else if (team2?.score !== undefined && team2.score >= 3) {
     winnerIndex = 1
-    seriesWinnerName = team2.name
+    seriesWinnerName = team2.name ?? null
   }
 
   const seedWrapperStyle = isRightSide ? { transform: "scaleX(-1)" } : {}

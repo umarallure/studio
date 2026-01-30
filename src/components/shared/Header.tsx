@@ -28,22 +28,22 @@ import {
 
 // Map legacy team names to real team names
 const TEAM_NAME_MAP: Record<string, string> = {
-  "Team 1": "Rawlpindi Tiger",
-  "Team 2": "Lahore qalanders",
-  "Team 3": "Islamabad United",
-  "Team 4": "Timberwolfs",
-  "Team 5": "Rawlpindi Express",
-  "Team 6": "Rawlpindi Gladiators",
-  "Team 7": "Peshawar Zalmi",
-  "Team 8": "Multan Sultans",
-  "Team 9": "Avengers",
-  "Team 10": "Hustlers",
-  "Team 11": "A-Team",
-  "Team 12": "Rawlpindi Bears",
-  "Team 13": "Alpha's",
-  "Team 14": "Vipers",
-  "Team 15": "Karachi Kings",
-  "Team 16": "Islamabad Sneak",
+  "Team 1": "Slayers",
+  "Team 2": "The Winning Edge",
+  "Team 3": "Skyline Squad",
+  "Team 4": "Saints",
+  "Team 5": "Argon Stallions",
+  "Team 6": "The Pipeline Pilots",
+  "Team 7": "Team OPTIMUS",
+  "Team 8": "Knight Riders",
+  "Team 9": "Legacy Lions",
+  "Team 10": "The DeBug Squad",
+  "Team 11": "Closers Cartel",
+  "Team 12": "Team Bandits",
+  "Team 13": "Team Amigo",
+  "Team 14": "Kingstons League",
+  "Team 15": "Team Leo",
+  "Team 16": "Zero2one"
 };
 
 function getDisplayTeamName(teamName?: string) {
